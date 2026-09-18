@@ -5,7 +5,7 @@ type Attribution = { kind: "committed"; commit: Commit } | { kind: "uncommitted"
 type Snapshot = { root: string; chunks: Blame[] };
 
 /** Owns document-version caches; repository changes explicitly invalidate them. */
-export class LineBlame implements vscode.HoverProvider, vscode.Disposable {
+export class LineBlame implements vscode.Disposable {
   private readonly decoration = vscode.window.createTextEditorDecorationType({
     after: { margin: "0 0 0 3em", color: new vscode.ThemeColor("editorCodeLens.foreground") },
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
@@ -101,28 +101,6 @@ export class LineBlame implements vscode.HoverProvider, vscode.Disposable {
     if (commit.body.trim()) markdown.appendText(`\n\n${commit.body.trim()}`);
     markdown.appendText(`\n\n${commit.sha}`);
     return markdown;
-  }
-  async provideHover(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-    token: vscode.CancellationToken,
-  ) {
-    const version = document.version;
-    const generation = this.generation;
-    try {
-      const attribution = await this.attribution(document, position.line);
-      if (
-        !attribution ||
-        token.isCancellationRequested ||
-        document.version !== version ||
-        generation !== this.generation ||
-        !this.enabled()
-      )
-        return;
-      return new vscode.Hover(this.markdown(attribution), document.lineAt(position.line).range);
-    } catch {
-      return; /* Untracked files and repositories without commits have no blame. */
-    }
   }
   private async render(generation: number) {
     const editor = vscode.window.activeTextEditor;

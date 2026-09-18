@@ -484,7 +484,6 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("gitInsights.openGraph", (id?: string) => graph.show(id)),
     lenses,
     lineBlame,
-    vscode.languages.registerHoverProvider({ scheme: "file" }, lineBlame),
     vscode.window.registerWebviewViewProvider("gitInsights.history", history),
     vscode.window.registerCustomEditorProvider("gitInsights.rebase", new RebaseEditor(context)),
     vscode.workspace.registerTextDocumentContentProvider("git-insights", {
