@@ -70,6 +70,25 @@ bun run package
 
 CIはWindows／Linuxで型・lint・format・Git実データテスト・ビルド・VSIX作成を実行し、CodeQLを別ワークフローで実行します。Marketplaceへの自動公開はありません。
 
+## GitHub Releasesへの公開
+
+このワークフローをmainへマージした後、Actionsの **Release → Run workflow** で試運転できます。`publish` をOFFにすると検査・VSIX作成のみを実行します。
+
+正式公開は `package.json` のバージョンと一致するタグをpushします。初回は現在の `0.1.2` を使用できます。
+
+```sh
+git switch main
+git pull --ff-only
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+タグのコミットに対しWindows／Linuxの型検査・テスト・VS Code起動テスト・VSIX作成がすべて通ると、GitHub Releaseを公開します。Linux側で作成した共通VSIXと `SHA256SUMS.txt` を添付し、リリースノートを自動生成します。追加のシークレットは不要です。GitHub標準の `GITHUB_TOKEN` を使用し、公開ジョブだけに書き込み権限を与えています。
+
+手動公開は **Run workflow** の対象に既存の `v0.1.2` タグを選び、`publish` をONにしてください。ブランチからの公開やバージョン不一致は拒否します。現在は `v数字.数字.数字` の正式版のみ対応しています。
+
+既存リリースは上書きしません。公開前に失敗した場合は原因を直して再実行できます。ドラフトが残った場合は添付ファイルを確認してGitHub上で公開するか、ドラフトのみ削除して再実行してください。公開済みの版に変更を加える場合は新しいバージョンとタグを使用します。Marketplaceへの公開は行いません。
+
 ## English quick start
 
 Install the VSIX, open a tracked file, then run **Git Insights: Show File History**. Switch to **Line** for the selected committed lines. Expand a commit and select a changed file to open its diff. Pin fixes the current file and range. CodeLens requires document symbols from a language extension and a clean file.
