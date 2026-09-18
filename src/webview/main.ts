@@ -1,15 +1,29 @@
 import "./style.css";
 import type { Commit, Change } from "../git";
+import { translateLabels, type LabelKey } from "../labels";
+import {
+  parseHostMessage,
+  isAction,
+  unreachable,
+  type HistoryMessage,
+  type TodoMessage,
+  type HistoryAction,
+  type RebaseRequest,
+  type WebviewRequest,
+} from "../protocol";
 import { actions, type TodoRow } from "../rebase";
 import { decodeAvatar } from "../avatar";
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
-let labels: Record<string, string> = {};
+let labels = translateLabels((key) => key);
 let locale = "en";
 let generation = 0;
-const t = (key: string) => labels[key] ?? key;
-const send = (data: object) => vscode.postMessage({ generation, ...data });
+const t = (key: LabelKey) => labels[key] ?? key;
+const send = (data: HistoryAction | RebaseRequest) => {
+  const request: WebviewRequest = "sha" in data ? { ...data, generation } : data;
+  vscode.postMessage(request);
+};
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = "") {
   const node = document.createElement(tag);
   node.textContent = text;
@@ -51,9 +65,10 @@ function group(date: string) {
   if (now.getTime() - value.getTime() < 7 * 86400000) return "Last week";
   return now.getTime() - value.getTime() < 30 * 86400000 ? "Over a week ago" : "Over a month ago";
 }
-const details = new Map<string, HTMLElement>();
+const details = new Map<string, { element: HTMLElement; commit: Commit; loaded: boolean }>();
 const avatars = new Map<string, HTMLElement>();
-function renderHistory(state: any) {
+function renderHistory(state: HistoryMessage) {
+  const { context, result } = state;
   generation = state.generation;
   details.clear();
   avatars.clear();
@@ -61,9 +76,9 @@ function renderHistory(state: any) {
   const header = el("header");
   const scope = el("nav");
   scope.setAttribute("aria-label", "Git Insights");
-  for (const mode of ["file", "line"]) {
+  for (const mode of ["file", "line"] as const) {
     const b = button(t(mode === "file" ? "File" : "Line"), () => send({ type: "scope", mode }));
-    b.setAttribute("aria-pressed", String(state.mode === mode));
+    b.setAttribute("aria-pressed", String(context.mode === mode));
     scope.append(b);
   }
   header.append(
@@ -77,27 +92,29 @@ function renderHistory(state: any) {
   );
   const file = el(
     "div",
-    state.file
-      ? state.file.split(/[\\/]/).pop() + (state.mode === "line" ? `:${state.range.join("–")}` : "")
+    context.file !== null
+      ? context.file.split(/[\\/]/).pop() +
+          (context.mode === "line" ? `:${context.range.join("–")}` : "")
       : "Git Insights",
     "file",
   );
-  file.title = state.file;
+  file.title = context.file ?? "";
   header.append(file);
   app.append(header);
-  const status = el(
-    "p",
-    state.loading
-      ? t("Loading…")
-      : state.notice || (!state.commits.length ? t("No history found.") : ""),
-    "status",
-  );
+  const notices = {
+    empty: () => t("Open a tracked file to see its history."),
+    loading: () => t("Loading…"),
+    error: () => (result.status === "error" ? result.notice : ""),
+    ready: () =>
+      result.status === "ready" && !result.commits.length ? t("No history found.") : "",
+  } satisfies Record<HistoryMessage["result"]["status"], () => string>;
+  const status = el("p", notices[result.status](), "status");
   status.setAttribute("role", "status");
   app.append(status);
   const timeline = el("section", "", "timeline");
   app.append(timeline);
   let previousGroup = "";
-  for (const commit of state.commits as Commit[]) {
+  for (const commit of result.status === "ready" ? result.commits : []) {
     const category = group(commit.date);
     if (category !== previousGroup) {
       timeline.append(el("h2", t(category)));
@@ -107,11 +124,12 @@ function renderHistory(state: any) {
     const row = el("div", "", "row");
     const body = el("section", "", "details");
     body.hidden = true;
-    details.set(commit.sha, body);
+    const detail = { element: body, commit, loaded: false };
+    details.set(commit.sha, detail);
     const toggle = button(commit.subject, () => {
       body.hidden = !body.hidden;
       toggle.setAttribute("aria-expanded", String(!body.hidden));
-      if (!body.hidden && !body.dataset.loaded) {
+      if (!body.hidden && !detail.loaded) {
         body.replaceChildren(el("p", t("Loading…")));
         send({ type: "details", sha: commit.sha });
       }
@@ -137,20 +155,19 @@ function renderHistory(state: any) {
       hash,
       button("↗", () => send({ type: "remote", sha: commit.sha }), t("Open on remote")),
     );
-    body.dataset.commit = JSON.stringify(commit);
     entry.append(row, meta, body);
     timeline.append(entry);
   }
-  if (state.truncated)
+  if (result.status === "ready" && result.truncated)
     app.append(
       el("p", t("History limit reached. Increase the limit in settings to see more."), "status"),
     );
 }
-function renderDetails(sha: string, changes: Change[]) {
-  const body = details.get(sha);
-  if (!body) return;
-  const commit = JSON.parse(body.dataset.commit!) as Commit;
-  body.dataset.loaded = "true";
+function renderDetails(sha: string, changes: readonly Change[]) {
+  const detail = details.get(sha);
+  if (!detail) return;
+  const { element: body, commit } = detail;
+  detail.loaded = true;
   body.replaceChildren();
   body.append(
     el("div", `${t("Author")}: ${commit.author} <${commit.email}>`),
@@ -180,8 +197,8 @@ let rows: TodoRow[] = [];
 let version = 0;
 let drag: number | undefined;
 let pending = false;
-function renderTodo(state: any) {
-  rows = state.rows;
+function renderTodo(state: TodoMessage) {
+  rows = state.rows.map((row) => ({ ...row }));
   version = state.version;
   pending = false;
   app.replaceChildren();
@@ -246,7 +263,7 @@ function renderTodo(state: any) {
       }
       select.value = row.action;
       select.onchange = () => {
-        row.action = select.value as TodoRow["action"];
+        if (isAction(select.value)) row.action = select.value;
       };
       const up = button("↑", () => move(index, index - 1), t("Move up"));
       up.disabled = !state.supported || index === 0;
@@ -259,31 +276,47 @@ function renderTodo(state: any) {
   draw();
 }
 window.addEventListener("message", (event) => {
-  const m = event.data;
-  if (!m || typeof m !== "object") return;
-  if (m.labels) labels = m.labels;
-  if (m.locale) locale = m.locale;
-  if (m.type === "history") renderHistory(m);
-  if (m.type === "details" && m.generation === generation) renderDetails(m.sha, m.changes);
-  if (m.type === "avatar" && m.generation === generation) {
-    const avatar = avatars.get(m.sha);
-    const decoded = decodeAvatar(m.avatar);
-    if (avatar && decoded) {
-      const img = el("img");
-      const url = URL.createObjectURL(new Blob([decoded.bytes], { type: decoded.mime }));
-      img.onload = img.onerror = () => URL.revokeObjectURL(url);
-      img.src = url;
-      img.alt = "";
-      avatar.replaceChildren(img);
-    }
+  const m = parseHostMessage(event.data);
+  if (!m) return;
+  if ("labels" in m) {
+    labels = m.labels;
+    locale = m.locale;
   }
-  if (m.type === "todo") renderTodo(m);
-  if (m.type === "error") {
-    pending = false;
-    const error = document.getElementById("error");
-    if (error) error.textContent = m.message;
-    const save = app.querySelector<HTMLButtonElement>(".toolbar button");
-    if (save) save.disabled = false;
+  switch (m.type) {
+    case "history":
+      renderHistory(m);
+      break;
+    case "details":
+      if (m.generation === generation) renderDetails(m.sha, m.changes);
+      break;
+    case "avatar":
+      {
+        if (m.generation !== generation) break;
+        const avatar = avatars.get(m.sha);
+        const decoded = decodeAvatar(m.avatar);
+        if (avatar && decoded) {
+          const img = el("img");
+          const url = URL.createObjectURL(new Blob([decoded.bytes], { type: decoded.mime }));
+          img.onload = img.onerror = () => URL.revokeObjectURL(url);
+          img.src = url;
+          img.alt = "";
+          avatar.replaceChildren(img);
+        }
+      }
+      break;
+    case "todo":
+      renderTodo(m);
+      break;
+    case "error": {
+      pending = false;
+      const error = document.getElementById("error");
+      if (error) error.textContent = m.message;
+      const save = app.querySelector<HTMLButtonElement>(".toolbar button");
+      if (save) save.disabled = false;
+      break;
+    }
+    default:
+      unreachable(m);
   }
 });
 send({ type: "ready" });

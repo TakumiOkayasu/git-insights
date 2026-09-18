@@ -1,5 +1,7 @@
 export const actions = ["pick", "reword", "edit", "squash", "fixup", "drop"] as const;
 export type Action = (typeof actions)[number];
+export const isAction = (value: unknown): value is Action =>
+  actions.some((action) => action === value);
 export interface TodoRow {
   id: number;
   action: Action;
@@ -33,16 +35,16 @@ export function parseTodo(text: string): Todo {
     if (!line.trim() || line.trimStart().startsWith("#")) return;
     const match = /^(\s*)(\S+)\s+([a-f0-9]{4,64})(?:\s+(.*))?$/.exec(line);
     const action = match && (aliases[match[2]] ?? match[2]);
-    if (!match || !actions.includes(action as Action)) {
+    if (!match || !isAction(action)) {
       todo.supported = false;
       return;
     }
     todo.slots.push(i);
-    todo.rows.push({ id: i, action: action as Action, sha: match[3], message: match[4] ?? "" });
+    todo.rows.push({ id: i, action, sha: match[3], message: match[4] ?? "" });
   });
   return todo;
 }
-export function serializeTodo(todo: Todo, rows: TodoRow[]): string {
+export function serializeTodo(todo: Todo, rows: readonly TodoRow[]): string {
   if (!todo.supported) throw new Error("Advanced rebase commands require the text editor.");
   if (rows.length !== todo.rows.length || new Set(rows.map((r) => r.id)).size !== rows.length)
     throw new Error("Invalid rebase rows");

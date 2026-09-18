@@ -1,12 +1,24 @@
 import * as vscode from "vscode";
-import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { Git, type Commit, type Change, type Blame, remoteCommitUrl } from "./git";
-import { parseTodo, serializeTodo, type TodoRow } from "./rebase";
+import { parseTodo, serializeTodo } from "./rebase";
 
-import { labelKeys } from "./labels";
+import { translateLabels } from "./labels";
+import {
+  parseHistoryRequest,
+  parseRebaseRequest,
+  type HostMessage,
+  type HistoryResult,
+  type HistoryMessage,
+  type Scope,
+} from "./protocol";
+import { createComparisonFactory, type ComparisonFactory } from "./git-comparison";
+import { createComparisonPresenter } from "./vscode-comparison";
+import type { BuiltinGitExtension, GitRepository } from "./vscode-git";
 // English strings are translation keys, resolved by VS Code from l10n/bundle.l10n.ja.json.
-const labels = () => Object.fromEntries(labelKeys.map((key) => [key, vscode.l10n.t(key)]));
+const labels = () => translateLabels((key) => vscode.l10n.t(key));
+const postMessage = (view: vscode.Webview, message: HostMessage) => view.postMessage(message);
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const config = () => vscode.workspace.getConfiguration("gitInsights");
 function html(webview: vscode.Webview, extension: vscode.Uri, mode: string): string {
   const nonce = randomBytes(18).toString("base64");
@@ -66,7 +78,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
   private view?: vscode.WebviewView;
   private editor?: vscode.TextEditor;
   private pinned?: { file: string; range: [number, number] };
-  private mode: "file" | "line" = "file";
+  private mode: Scope = "file";
   private generation = 0;
   private controller?: AbortController;
   private timer?: ReturnType<typeof setTimeout>;
@@ -78,7 +90,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
     private context: vscode.ExtensionContext,
     private git: Git,
     private avatars: Avatars,
-    private revisions: Map<string, string>,
+    private comparisons: ComparisonFactory,
   ) {
     this.editor = vscode.window.activeTextEditor;
     this.listeners.push(
@@ -103,7 +115,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.refresh(), 300);
   }
-  async show(mode: "file" | "line") {
+  async show(mode: Scope) {
     this.mode = mode;
     this.pinned = undefined;
     const e = vscode.window.activeTextEditor;
@@ -114,9 +126,9 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
   resolveWebviewView(view: vscode.WebviewView) {
     this.view = view;
     view.webview.html = html(view.webview, this.context.extensionUri, "history");
-    const sub = view.webview.onDidReceiveMessage((m) => {
+    const sub = view.webview.onDidReceiveMessage((m: unknown) => {
       void this.message(m).catch((e) => {
-        void vscode.window.showErrorMessage(String(e.message ?? e));
+        void vscode.window.showErrorMessage(errorMessage(e));
       });
     });
     view.onDidDispose(() => {
@@ -146,24 +158,27 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
     this.changes.clear();
     if (!this.view) return;
     const target = this.target();
-    const base = {
+    const base: Omit<HistoryMessage, "result"> = {
       type: "history",
       generation,
       labels: labels(),
       locale: vscode.env.language,
-      mode: this.mode,
       pinned: !!this.pinned,
-      file: target?.file ?? "",
-      range: target?.range,
+      context: !target
+        ? { mode: this.mode, file: null }
+        : this.mode === "line"
+          ? { mode: "line", file: target.file, range: target.range }
+          : { mode: "file", file: target.file },
     };
-    const post = (data: object) => {
-      if (generation === this.generation) void this.view?.webview.postMessage({ ...base, ...data });
+    const post = (result: HistoryResult) => {
+      if (generation === this.generation && this.view)
+        void postMessage(this.view.webview, { ...base, result });
     };
     if (!target) {
-      post({ commits: [], notice: vscode.l10n.t("Open a tracked file to see its history.") });
+      post({ status: "empty" });
       return;
     }
-    post({ commits: [], loading: true });
+    post({ status: "loading" });
     try {
       const document = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === target.file);
       if (this.mode === "line" && document?.isDirty)
@@ -197,14 +212,19 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
       if (generation !== this.generation) return;
       this.root = root;
       commits.forEach((c) => this.commits.set(c.sha, c));
-      post({ commits, loading: false, truncated: commits.length === limit });
+      post({ status: "ready", commits, truncated: commits.length === limit });
       // Limit simultaneous outbound requests, and never block history on avatar loading.
       for (let i = 0; i < commits.length && generation === this.generation; i += 6) {
         await Promise.all(
           commits.slice(i, i + 6).map(async (c) => {
             const avatar = await this.avatars.get(c.email);
-            if (avatar && config().get("gravatar.enabled", false) && generation === this.generation)
-              void this.view?.webview.postMessage({
+            if (
+              avatar &&
+              config().get("gravatar.enabled", false) &&
+              generation === this.generation &&
+              this.view
+            )
+              void postMessage(this.view.webview, {
                 type: "avatar",
                 generation,
                 sha: c.sha,
@@ -214,14 +234,14 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
         );
       }
     } catch (e) {
-      if (!signal.aborted)
-        post({ commits: [], loading: false, notice: String((e as Error).message) });
+      if (!signal.aborted) post({ status: "error", notice: errorMessage(e) });
     }
   }
-  private async message(m: any) {
-    if (!m || typeof m !== "object") return;
+  private async message(value: unknown) {
+    const m = parseHistoryRequest(value);
+    if (!m) return;
     if (m.type === "ready" || m.type === "refresh") return this.refresh();
-    if (m.type === "scope" && ["file", "line"].includes(m.mode)) {
+    if (m.type === "scope") {
       this.mode = m.mode;
       return this.refresh();
     }
@@ -229,7 +249,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
       this.pinned = this.pinned ? undefined : this.target();
       return this.refresh();
     }
-    if (m.generation !== this.generation || typeof m.sha !== "string") return;
+    if (!("generation" in m) || m.generation !== this.generation) return;
     const commit = this.commits.get(m.sha);
     if (!commit) return;
     const root = this.root;
@@ -248,7 +268,8 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
       if (generation !== this.generation) return;
       this.changes.set(commit.sha, changes);
       if (m.type === "details") {
-        void this.view?.webview.postMessage({
+        if (!this.view) return;
+        void postMessage(this.view.webview, {
           type: "details",
           generation,
           sha: commit.sha,
@@ -256,29 +277,12 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
         });
         return;
       }
+      if (m.type !== "diff") return;
       const change = changes.find((c) => c.path === m.path);
       if (!change) return;
-      const old =
-        change.status === "A" || !commit.parents[0]
-          ? ""
-          : await this.git.content(root, commit.parents[0], change.oldPath ?? change.path);
-      const current =
-        change.status === "D" ? "" : await this.git.content(root, commit.sha, change.path);
-      const uri = (text: string, side: string) => {
-        const key = vscode.Uri.from({
-          scheme: "git-insights",
-          path: `/${change.path}`,
-          query: `${commit.sha}-${side}-${randomBytes(6).toString("hex")}`,
-        });
-        this.revisions.set(key.toString(), text);
-        return key;
-      };
-      await vscode.commands.executeCommand(
-        "vscode.diff",
-        uri(old, "before"),
-        uri(current, "after"),
-        `${path.basename(change.path)} (${commit.sha.slice(0, 8)})`,
-      );
+      await this.comparisons
+        .create(root, commit, change, () => generation === this.generation)
+        .open();
     }
   }
 }
@@ -385,16 +389,24 @@ class RebaseEditor implements vscode.CustomTextEditorProvider {
   constructor(private context: vscode.ExtensionContext) {}
   resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel) {
     panel.webview.html = html(panel.webview, this.context.extensionUri, "rebase");
-    const update = () =>
-      panel.webview.postMessage({
+    const update = () => {
+      const todo = parseTodo(document.getText());
+      return postMessage(panel.webview, {
         type: "todo",
-        ...parseTodo(document.getText()),
+        rows: todo.rows,
+        supported: todo.supported,
         version: document.version,
         labels: labels(),
         locale: vscode.env.language,
       });
+    };
     let applying = false;
-    const listener = panel.webview.onDidReceiveMessage(async (m) => {
+    const listener = panel.webview.onDidReceiveMessage(async (value: unknown) => {
+      const m = parseRebaseRequest(value);
+      if (!m) return;
+      if (m.type === "save" && applying) return;
+      const ownsSave = m.type === "save";
+      if (ownsSave) applying = true;
       try {
         if (m?.type === "ready") {
           await update();
@@ -404,15 +416,14 @@ class RebaseEditor implements vscode.CustomTextEditorProvider {
           await vscode.commands.executeCommand("vscode.openWith", document.uri, "default");
           return;
         }
-        if (m?.type !== "save" || !Array.isArray(m.rows) || applying) return;
+        if (m.type !== "save") return;
         if (m.version !== document.version) {
           await update();
           throw new Error(
             vscode.l10n.t("The document changed. Review the updated plan and try again."),
           );
         }
-        applying = true;
-        const text = serializeTodo(parseTodo(document.getText()), m.rows as TodoRow[]);
+        const text = serializeTodo(parseTodo(document.getText()), m.rows);
         const edit = new vscode.WorkspaceEdit();
         edit.replace(
           document.uri,
@@ -423,12 +434,12 @@ class RebaseEditor implements vscode.CustomTextEditorProvider {
           throw new Error(vscode.l10n.t("Could not save the rebase plan."));
         await update();
       } catch (e) {
-        await panel.webview.postMessage({
+        await postMessage(panel.webview, {
           type: "error",
-          message: vscode.l10n.t(String((e as Error).message)),
+          message: vscode.l10n.t(errorMessage(e)),
         });
       } finally {
-        applying = false;
+        if (ownsSave) applying = false;
       }
     });
     const change = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -443,12 +454,16 @@ class RebaseEditor implements vscode.CustomTextEditorProvider {
 
 export async function activate(context: vscode.ExtensionContext) {
   if (!vscode.workspace.isTrusted) return;
-  const builtin = vscode.extensions.getExtension("vscode.git");
+  const builtin = vscode.extensions.getExtension<BuiltinGitExtension>("vscode.git");
   const api = builtin ? (await builtin.activate()).getAPI(1) : undefined;
   const git = new Git(api?.git.path ?? "git");
   const avatars = new Avatars();
   const revisions = new Map<string, string>();
-  const history = new History(context, git, avatars, revisions);
+  const comparisons = createComparisonFactory(
+    (root, revision, file) => git.content(root, revision, file),
+    createComparisonPresenter(revisions),
+  );
+  const history = new History(context, git, avatars, comparisons);
   const lenses = new Lenses(git);
   const refresh = () => {
     lenses.refresh();
@@ -487,7 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidSaveTextDocument(refresh),
   );
   if (api) {
-    const watch = (repository: any) =>
+    const watch = (repository: GitRepository) =>
       context.subscriptions.push(repository.state.onDidChange(refresh));
     api.repositories.forEach(watch);
     context.subscriptions.push(api.onDidOpenRepository(watch));

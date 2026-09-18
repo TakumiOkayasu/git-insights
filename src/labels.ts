@@ -30,4 +30,10 @@ export const labelKeys = [
   "Commit or discard changes before viewing line history.",
   "Squash or fixup requires a preceding commit.",
   "The document changed. Review the updated plan and try again.",
-];
+] as const;
+export type LabelKey = (typeof labelKeys)[number];
+export type Labels = Readonly<Record<LabelKey, string>>;
+export function translateLabels(translate: (key: LabelKey) => string): Labels {
+  // Object.fromEntries loses literal keys; all keys originate from the closed tuple above.
+  return Object.fromEntries(labelKeys.map((key) => [key, translate(key)])) as Labels;
+}
