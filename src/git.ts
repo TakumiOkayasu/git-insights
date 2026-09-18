@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 
 export interface Commit {
@@ -160,7 +161,18 @@ export class Git {
     return (await this.run(path.dirname(file), ["rev-parse", "--show-toplevel"])).trim();
   }
   relative(root: string, file: string): string {
-    const relative = path.relative(root, file).split(path.sep).join("/");
+    // Git resolves directory aliases (including Windows 8.3 names) while VS Code
+    // may retain them in document URIs. Resolve directories, preserving a tracked
+    // symlink's basename so the path still addresses the Git entry itself.
+    const directory = (value: string) => {
+      try {
+        return realpathSync.native(value);
+      } catch {
+        return value;
+      }
+    };
+    const resolvedFile = path.join(directory(path.dirname(file)), path.basename(file));
+    const relative = path.relative(directory(root), resolvedFile).split(path.sep).join("/");
     if (relative === ".." || relative.startsWith("../") || path.isAbsolute(relative))
       throw new Error("File is outside repository");
     return relative;

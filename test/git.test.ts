@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtemp, writeFile, rename, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rename, rm, symlink, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Git, parseLog, parseChanges, remoteCommitUrl } from "../src/git";
@@ -71,6 +71,16 @@ describe("real Git repositories", () => {
   });
   it("rejects files outside the repository", () => {
     expect(() => git.relative(root, path.join(root, "..", "other.txt"))).toThrow();
+  });
+  it("resolves directory aliases before checking repository containment", async () => {
+    const alias = path.join(root, "directory-alias");
+    await symlink(root, alias, process.platform === "win32" ? "junction" : "dir");
+    try {
+      expect(git.relative(root, path.join(alias, secondName))).toBe(secondName);
+      expect(await git.history(root, path.join(alias, secondName), 10)).toHaveLength(3);
+    } finally {
+      await unlink(alias);
+    }
   });
   it("handles empty repositories and aborts Git", async () => {
     const controller = new AbortController();
