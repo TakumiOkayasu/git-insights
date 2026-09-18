@@ -37,5 +37,12 @@
   "Repository Graph": "リポジトリグラフ",
   "Fetching remotes…": "リモートを取得中…",
   "Switch local branch": "ローカルブランチを切り替え",
-  "Uncommitted changes": "未コミットの変更"
+  "Uncommitted changes": "未コミットの変更",
+  "Settings": "設定",
+  "{0} files changed": "{0} 個のファイルを変更",
+  "{0} insertions (+)": "{0} 行追加 (+)",
+  "{0} deletions (-)": "{0} 行削除 (-)",
+  "{0} binary files": "バイナリ {0} ファイル",
+  "Change statistics unavailable.": "変更統計を取得できませんでした。",
+  "Open in {0}": "{0} で開く"
 }

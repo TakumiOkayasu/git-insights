@@ -32,3 +32,19 @@ it("decodes bounded raster data and rejects URLs, SVG and malformed payloads", (
   ])
     expect(decodeAvatar(value)).toBeUndefined();
 });
+
+it("has Japanese translations for blame hover labels", () => {
+  const translations = JSON.parse(
+    readFileSync(new URL("../l10n/bundle.l10n.ja.json", import.meta.url), "utf8"),
+  );
+  for (const key of [
+    "Settings",
+    "{0} files changed",
+    "{0} insertions (+)",
+    "{0} deletions (-)",
+    "{0} binary files",
+    "Change statistics unavailable.",
+    "Open in {0}",
+  ])
+    expect(translations[key], key).toBeTruthy();
+});

@@ -470,7 +470,7 @@ export async function activate(context: vscode.ExtensionContext) {
     html(view, context.extensionUri, "graph"),
   );
   const lenses = new Lenses(git);
-  const lineBlame = new LineBlame(git);
+  const lineBlame = new LineBlame(git, (email) => avatars.get(email));
   const refresh = () => {
     lineBlame.refresh();
     lenses.refresh();
