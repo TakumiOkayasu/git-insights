@@ -39,7 +39,9 @@ try {
       "--disable-extensions",
       "--disable-telemetry",
       "--user-data-dir",
-      path.join(fixture, "profile"),
+      // Electron may briefly retain file locks after exiting on Windows.
+      // Keep its disposable profile outside the Git fixture being cleaned up.
+      path.join(project, ".vscode-test", `profile-${path.basename(fixture)}`),
     ],
     extensionTestsEnv: { ...process.env },
   });
