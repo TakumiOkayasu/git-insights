@@ -10,5 +10,6 @@
   "limit": "Maximum commits shown in history.",
   "graph": "Open Repository Graph",
   "repositories": "Repositories",
-  "repositoriesWelcome": "Open a folder containing a Git repository.\\n[Open Commit Graph](command:gitInsights.openGraph)"
+  "repositoriesWelcome": "Open a folder containing a Git repository.\\n[Open Commit Graph](command:gitInsights.openGraph)",
+  "blame": "Show current-line blame annotations and commit details on hover."
 }

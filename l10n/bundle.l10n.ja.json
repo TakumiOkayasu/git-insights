@@ -36,5 +36,6 @@
   "Last changed by {0}, {1}": "最終変更: {0}、{1}",
   "Repository Graph": "リポジトリグラフ",
   "Fetching remotes…": "リモートを取得中…",
-  "Switch local branch": "ローカルブランチを切り替え"
+  "Switch local branch": "ローカルブランチを切り替え",
+  "Uncommitted changes": "未コミットの変更"
 }

@@ -16,6 +16,7 @@ import { createComparisonFactory, type ComparisonFactory } from "./git-compariso
 import { createComparisonPresenter } from "./vscode-comparison";
 import type { BuiltinGitExtension, GitRepository } from "./vscode-git";
 import { GraphWorkbench } from "./graph-workbench";
+import { LineBlame } from "./line-blame";
 // English strings are translation keys, resolved by VS Code from l10n/bundle.l10n.ja.json.
 const labels = () => translateLabels((key) => vscode.l10n.t(key));
 const postMessage = (view: vscode.Webview, message: HostMessage) => view.postMessage(message);
@@ -469,7 +470,9 @@ export async function activate(context: vscode.ExtensionContext) {
     html(view, context.extensionUri, "graph"),
   );
   const lenses = new Lenses(git);
+  const lineBlame = new LineBlame(git);
   const refresh = () => {
+    lineBlame.refresh();
     lenses.refresh();
     history.schedule();
     graph.schedule();
@@ -480,6 +483,8 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider("gitInsights.repositories", graph),
     vscode.commands.registerCommand("gitInsights.openGraph", (id?: string) => graph.show(id)),
     lenses,
+    lineBlame,
+    vscode.languages.registerHoverProvider({ scheme: "file" }, lineBlame),
     vscode.window.registerWebviewViewProvider("gitInsights.history", history),
     vscode.window.registerCustomEditorProvider("gitInsights.rebase", new RebaseEditor(context)),
     vscode.workspace.registerTextDocumentContentProvider("git-insights", {

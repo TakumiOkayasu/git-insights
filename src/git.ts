@@ -111,7 +111,7 @@ export function parseBlame(text: string): Blame[] {
 
 export class Git {
   constructor(public executable = "git") {}
-  run(root: string, args: string[], signal?: AbortSignal): Promise<string> {
+  run(root: string, args: string[], signal?: AbortSignal, input?: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(
         this.executable,
@@ -128,6 +128,10 @@ export class Git {
       const stderr: Buffer[] = [];
       let bytes = 0;
       let failure: Error | undefined;
+      child.stdin.on("error", () => {
+        /* Git may exit before consuming stdin. */
+      });
+      child.stdin.end(input);
       const timer = setTimeout(() => {
         failure = new Error("Git timed out");
         child.kill();
@@ -210,6 +214,24 @@ export class Git {
     return parseBlame(
       await this.run(root, ["blame", "--incremental", "HEAD", "--", this.relative(root, file)]),
     );
+  }
+  async blameContents(root: string, file: string, contents: string): Promise<Blame[]> {
+    return parseBlame(
+      await this.run(
+        root,
+        ["blame", "--incremental", "--contents", "-", "--", this.relative(root, file)],
+        undefined,
+        contents,
+      ),
+    );
+  }
+  async commit(root: string, sha: string): Promise<Commit> {
+    if (!isSha(sha)) throw new Error("Invalid revision");
+    const commit = parseLog(
+      await this.run(root, ["show", "--no-patch", `--format=${format}`, sha]),
+    )[0];
+    if (!commit) throw new Error("Commit not found");
+    return commit;
   }
 }
 

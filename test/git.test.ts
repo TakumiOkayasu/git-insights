@@ -72,6 +72,19 @@ describe("real Git repositories", () => {
   it("rejects files outside the repository", () => {
     expect(() => git.relative(root, path.join(root, "..", "other.txt"))).toThrow();
   });
+  it("attributes buffer insertions without shifting committed lines or writing the file", async () => {
+    const chunks = await git.blameContents(
+      root,
+      path.join(root, secondName),
+      "inserted\none\nchanged\nthree\n",
+    );
+    const at = (line: number) => chunks.find((b) => b.start <= line && line < b.start + b.count)!;
+    expect(at(1).sha).toMatch(/^0+$/);
+    expect(at(2).sha).toBe(initial);
+    expect(at(3).sha).toBe(await git.head(root));
+    expect((await git.commit(root, at(2).sha)).body).toBe("Body with\nmultiple lines\n");
+    expect(await git.run(root, ["status", "--porcelain"])).toBe("");
+  });
   it("resolves directory aliases before checking repository containment", async () => {
     const alias = path.join(root, "directory-alias");
     await symlink(root, alias, process.platform === "win32" ? "junction" : "dir");

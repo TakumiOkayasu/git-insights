@@ -57,6 +57,31 @@ export async function run() {
     "CodeLens shows real Git author",
   );
   await vscode.commands.executeCommand("gitInsights.fileHistory");
+  const blameHover = async (line: number) => {
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      "vscode.executeHoverProvider",
+      document.uri,
+      new vscode.Position(line, 0),
+    );
+    return (hovers ?? [])
+      .flatMap((hover) => hover.contents)
+      .filter(
+        (content): content is vscode.MarkdownString => content instanceof vscode.MarkdownString,
+      )
+      .map((content) => content.value.replaceAll("&nbsp;", " "))
+      .find((text) => text.includes("Git Insights"));
+  };
+  await vscode.window.showTextDocument(document);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.match((await blameHover(0)) ?? "", /Host Test/);
+  assert.match((await blameHover(0)) ?? "", /Fixture/);
+  const insertion = new vscode.WorkspaceEdit();
+  insertion.insert(document.uri, new vscode.Position(0, 0), "unsaved new line\n");
+  await vscode.workspace.applyEdit(insertion);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.match((await blameHover(0)) ?? "", /Uncommitted changes/);
+  assert.match((await blameHover(1)) ?? "", /Host Test/);
+  await vscode.commands.executeCommand("workbench.action.files.revert");
   await vscode.commands.executeCommand("gitInsights.lineHistory");
   await vscode.commands.executeCommand("gitInsights.refresh");
   await vscode.commands.executeCommand(
