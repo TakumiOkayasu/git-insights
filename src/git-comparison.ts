@@ -9,7 +9,12 @@ export interface ComparisonPresentation {
   readonly revision: string;
 }
 export interface ComparisonFactory {
-  create(root: string, commit: Commit, change: Change, isCurrent: () => boolean): Comparison;
+  create(
+    root: string,
+    commit: Pick<Commit, "sha" | "parents">,
+    change: Change,
+    isCurrent: () => boolean,
+  ): Comparison;
 }
 export function createComparisonFactory(
   read: (root: string, revision: string, file: string) => Promise<string>,

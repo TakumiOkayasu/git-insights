@@ -91,6 +91,7 @@ const change = (v: unknown): v is Change =>
   record(v) &&
   strings(v, ["status", "path", "added", "deleted"]) &&
   (v.oldPath === undefined || typeof v.oldPath === "string");
+export { commit as isCommit, change as isChange };
 const localized = (v: Record<string, unknown>): v is Record<string, unknown> & Localized => {
   const labels = v.labels;
   return (

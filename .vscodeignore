@@ -13,3 +13,4 @@ dist/**/*.map
 
 bun.lock
 docs/**
+design-qa.md

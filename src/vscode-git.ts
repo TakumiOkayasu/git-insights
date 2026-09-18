@@ -1,6 +1,7 @@
 import type * as vscode from "vscode";
 // The subset of the built-in Git extension API this adapter actually consumes.
 export interface GitRepository {
+  readonly rootUri: vscode.Uri;
   readonly state: { readonly onDidChange: vscode.Event<void> };
 }
 export interface BuiltinGitApi {

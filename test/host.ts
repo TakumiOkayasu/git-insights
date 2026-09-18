@@ -7,7 +7,7 @@ export async function run() {
   await extension.activate();
   assert.equal(extension.isActive, true);
   const commands = await vscode.commands.getCommands(true);
-  for (const command of ["fileHistory", "lineHistory", "refresh", "openRebase"])
+  for (const command of ["fileHistory", "lineHistory", "refresh", "openRebase", "openGraph"])
     assert.ok(commands.includes(`gitInsights.${command}`), command);
   const folder = vscode.workspace.workspaceFolders![0].uri;
   const document = await vscode.workspace.openTextDocument(
@@ -74,5 +74,26 @@ export async function run() {
     "Rebase custom editor opens",
   );
   symbols.dispose();
+  await vscode.commands.executeCommand("gitInsights.openGraph", folder.fsPath);
+  const graphOpen = () =>
+    vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .some(
+        (tab) =>
+          tab.input instanceof vscode.TabInputWebview &&
+          tab.input.viewType.includes("gitInsights.graph"),
+      );
+  for (let attempt = 0; attempt < 20 && !graphOpen(); attempt++)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.ok(
+    vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .some(
+        (tab) =>
+          tab.input instanceof vscode.TabInputWebview &&
+          tab.input.viewType.includes("gitInsights.graph"),
+      ),
+    "Repository graph opens in an editor tab",
+  );
   console.log("Git Insights: extension host smoke tests passed");
 }

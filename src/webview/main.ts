@@ -1,4 +1,5 @@
 import "./style.css";
+import { mountGraph } from "./graph";
 import type { Commit, Change } from "../git";
 import { translateLabels, type LabelKey } from "../labels";
 import {
@@ -16,6 +17,8 @@ import { decodeAvatar } from "../avatar";
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
+if (document.body.dataset.mode === "graph")
+  mountGraph(app, (message) => vscode.postMessage(message));
 let labels = translateLabels((key) => key);
 let locale = "en";
 let generation = 0;
