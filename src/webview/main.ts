@@ -102,13 +102,12 @@ function renderHistory(state: HistoryMessage) {
   header.append(file);
   app.append(header);
   const notices = {
-    empty: () => t("Open a tracked file to see its history."),
-    loading: () => t("Loading…"),
-    error: () => (result.status === "error" ? result.notice : ""),
-    ready: () =>
-      result.status === "ready" && !result.commits.length ? t("No history found.") : "",
-  } satisfies Record<HistoryMessage["result"]["status"], () => string>;
-  const status = el("p", notices[result.status](), "status");
+    empty: t("Open a tracked file to see its history."),
+    loading: t("Loading…"),
+    error: result.status === "error" ? result.notice : "",
+    ready: result.status === "ready" && !result.commits.length ? t("No history found.") : "",
+  } satisfies Record<HistoryMessage["result"]["status"], string>;
+  const status = el("p", notices[result.status], "status");
   status.setAttribute("role", "status");
   app.append(status);
   const timeline = el("section", "", "timeline");
