@@ -1,0 +1,15 @@
+.git/**
+.github/**
+.vscode/**
+.vscode-test/**
+node_modules/**
+src/**
+test/**
+dist-test/**
+pnpm-workspace.yaml
+.npmrc
+*.config.ts
+tsconfig.json
+pnpm-lock.yaml
+*.vsix
+dist/**/*.map
