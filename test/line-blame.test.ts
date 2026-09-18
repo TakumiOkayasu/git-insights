@@ -6,6 +6,9 @@ const host = vi.hoisted(() => ({
   enabled: true,
   setDecorations: vi.fn(),
   dispose: vi.fn(),
+  commands: new Map<string, (...args: unknown[]) => unknown>(),
+  copy: vi.fn(),
+  open: vi.fn(),
 }));
 vi.mock("vscode", () => {
   const event = () => ({ dispose() {} });
@@ -33,6 +36,14 @@ vi.mock("vscode", () => {
     setDecorations: host.setDecorations,
   };
   return {
+    commands: {
+      registerCommand: (name: string, callback: (...args: unknown[]) => unknown) => {
+        host.commands.set(name, callback);
+        return event();
+      },
+      executeCommand: vi.fn(),
+    },
+    Uri: { parse: (value: string) => value },
     window: {
       activeTextEditor: editor,
       visibleTextEditors: [editor],
@@ -54,8 +65,11 @@ vi.mock("vscode", () => {
         public end: unknown,
       ) {}
     },
-    env: { language: "en" },
-    l10n: { t: (text: string) => text },
+    env: { language: "en", clipboard: { writeText: host.copy }, openExternal: host.open },
+    l10n: {
+      t: (text: string, ...args: unknown[]) =>
+        text.replace(/\{(\d+)\}/g, (_match, index) => String(args[index])),
+    },
   };
 });
 
@@ -74,14 +88,18 @@ const git = {
   root: vi.fn().mockResolvedValue("/repo"),
   blameContents: vi.fn(),
   commit: vi.fn().mockResolvedValue(commit),
-} satisfies Pick<Git, "root" | "blameContents" | "commit">;
+  details: vi.fn(),
+  run: vi.fn(),
+} satisfies Pick<Git, "root" | "blameContents" | "commit" | "details" | "run">;
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   host.enabled = true;
   git.blameContents.mockResolvedValue([{ sha, start: 1, count: 1 }]);
-  blame = new LineBlame(git as unknown as Git);
+  git.details.mockResolvedValue([{ status: "M", path: "file.ts", added: "2", deleted: "1" }]);
+  git.run.mockResolvedValue("git@gitlab.com:owner/repo.git");
+  blame = new LineBlame(git as unknown as Git, async () => undefined);
 });
 afterEach(() => {
   blame.dispose();
@@ -97,7 +115,9 @@ it("keeps commit details on one zero-width end-of-line decoration", async () => 
   expect(decoration.range.end).toEqual(decoration.range.start);
   for (const text of [commit.author, commit.email, commit.subject, commit.body, sha])
     expect(decoration.hoverMessage.value).toContain(text);
-  expect(decoration.hoverMessage.value.match(/Git Insights/g)).toHaveLength(1);
+  expect(decoration.hoverMessage.value).toContain("2 insertions (+)");
+  expect(decoration.hoverMessage.value).toContain("1 deletions (-)");
+  expect(decoration.hoverMessage.value).toContain("Open in GitLab");
   expect(decoration.renderOptions.after.contentText).toContain(commit.subject);
 });
 
@@ -116,4 +136,71 @@ it("clears the decoration and its hover when blame is disabled", async () => {
   blame.refresh();
   await vi.advanceTimersByTimeAsync(200);
   expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
+});
+
+it("copies the full SHA and opens the selected commit, rejecting stale links", async () => {
+  await vi.advanceTimersByTimeAsync(200);
+  const markdown = host.setDecorations.mock.lastCall![1][0].hoverMessage.value;
+  const query = /command:gitInsights\.blame\.copySha\?([^)]*)/.exec(markdown)![1];
+  const [generation] = JSON.parse(decodeURIComponent(query));
+  await host.commands.get("gitInsights.blame.copySha")!(generation);
+  expect(host.copy).toHaveBeenCalledWith(sha);
+  await host.commands.get("gitInsights.blame.openRemote")!(generation);
+  expect(host.open).toHaveBeenCalledWith(`https://gitlab.com/owner/repo/-/commit/${sha}`);
+  blame.refresh();
+  await vi.advanceTimersByTimeAsync(200);
+  await host.commands.get("gitInsights.blame.copySha")!(generation);
+  await host.commands.get("gitInsights.blame.openRemote")!(generation);
+  expect(host.copy).toHaveBeenCalledTimes(1);
+  expect(host.open).toHaveBeenCalledTimes(1);
+});
+
+it("retains attribution and reports a statistics failure without inventing zero counts", async () => {
+  git.details.mockRejectedValueOnce(new Error("Git failed"));
+  await vi.advanceTimersByTimeAsync(200);
+  const value = host.setDecorations.mock.lastCall![1][0].hoverMessage.value;
+  expect(value).toContain(commit.author);
+  expect(value).toContain("Change statistics unavailable.");
+  expect(value).not.toContain("0 files changed");
+  blame.refresh();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(git.details).toHaveBeenCalledTimes(2);
+});
+
+it("omits unsupported or missing remotes while preserving commit details", async () => {
+  git.run.mockRejectedValueOnce(new Error("No origin"));
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1][0].hoverMessage.value).not.toContain(
+    "link-external",
+  );
+  git.run.mockResolvedValue("https://user:secret@gitlab.com/owner/repo.git");
+  blame.refresh();
+  await vi.advanceTimersByTimeAsync(200);
+  const value = host.setDecorations.mock.lastCall![1][0].hoverMessage.value;
+  expect(value).toContain(commit.author);
+  expect(value).not.toContain("link-external");
+  expect(value).not.toContain("secret");
+});
+
+it("does not redisplay stale details after the annotation is disabled", async () => {
+  let resolve!: (changes: []) => void;
+  git.details.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1][0].hoverMessage.value).toContain("Loading…");
+  host.enabled = false;
+  blame.refresh();
+  resolve([]);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
+});
+
+it("reuses immutable statistics for the same commit", async () => {
+  await vi.advanceTimersByTimeAsync(200);
+  blame.refresh();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(git.details).toHaveBeenCalledTimes(1);
 });
