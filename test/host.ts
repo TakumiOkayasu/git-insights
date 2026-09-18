@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import assert from "node:assert/strict";
 import { Git } from "../src/git";
+import { blameHover, blameCommands } from "../src/blame-hover";
 export async function run() {
   const extension = vscode.extensions.getExtension("TakumiOkayasu.git-insights");
   assert.ok(extension, "Extension discovered");
@@ -36,6 +37,50 @@ export async function run() {
     git: git.executable,
   });
   console.log("Host blame", await git.blame(folder.fsPath, document.uri.fsPath));
+  const commit = await git.commit(folder.fsPath, await git.head(folder.fsPath));
+  const richHover = blameHover(
+    commit,
+    {
+      changes: [
+        { status: "M", path: "sample.txt", added: "10", deleted: "3" },
+        { status: "A", path: "image.png", added: "-", deleted: "-" },
+      ],
+      remoteUrl: `https://gitlab.com/owner/repo/-/commit/${commit.sha}`,
+      avatar: "data:image/png;base64,AQID",
+    },
+    1,
+    new Date(commit.date).getTime() + 86400000,
+  );
+  assert.equal(richHover.supportHtml, true);
+  assert.equal(richHover.supportThemeIcons, true);
+  assert.deepEqual(richHover.isTrusted, { enabledCommands: Object.values(blameCommands) });
+  const hoverText = richHover.value.replaceAll("&nbsp;", " ");
+  assert.match(hoverText, /2 files changed/);
+  assert.match(hoverText, /10 insertions/);
+  assert.match(hoverText, /3 deletions/);
+  assert.match(hoverText, /1 binary files/);
+  assert.match(hoverText, /Open in GitLab/);
+  assert.match(hoverText, /data:image\/png;base64,AQID/);
+  assert.ok(hoverText.includes(commit.sha));
+  const hostile =
+    '[run](command:workbench.action.closeWindow) <img src="https://example.invalid/tracker">';
+  const escaped = new vscode.MarkdownString().appendText(hostile).value;
+  const escapedHover = blameHover(
+    { ...commit, author: hostile, subject: hostile, body: hostile, email: hostile },
+    {},
+    1,
+  );
+  assert.ok(escapedHover.value.includes(escaped), "Repository text uses VS Code escaping");
+  assert.ok(!escapedHover.value.includes(hostile), "Repository text cannot inject links or HTML");
+  const unsafeAvatar = blameHover(
+    commit,
+    { changes: [], avatar: "https://example.invalid/tracker" },
+    1,
+  );
+  assert.ok(!unsafeAvatar.value.includes("<img"), "Only validated raster data is embedded");
+  const uncommitted = blameHover(undefined, {}, 1);
+  assert.ok(!uncommitted.value.includes("copySha"));
+  assert.ok(!uncommitted.value.includes("openRemote"));
   console.log("Host diff", await git.run(folder.fsPath, ["diff", "HEAD", "--", "sample.txt"]));
   let lenses: vscode.CodeLens[] = [];
   // Language providers and Git repository discovery settle asynchronously at startup.
@@ -57,31 +102,32 @@ export async function run() {
     "CodeLens shows real Git author",
   );
   await vscode.commands.executeCommand("gitInsights.fileHistory");
-  const blameHover = async (line: number) => {
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      "vscode.executeHoverProvider",
-      document.uri,
-      new vscode.Position(line, 0),
-    );
-    return (hovers ?? [])
-      .flatMap((hover) => hover.contents)
-      .filter(
-        (content): content is vscode.MarkdownString => content instanceof vscode.MarkdownString,
-      )
-      .map((content) => content.value.replaceAll("&nbsp;", " "))
-      .find((text) => text.includes("Git Insights"));
-  };
-  await vscode.window.showTextDocument(document);
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.match((await blameHover(0)) ?? "", /Host Test/);
-  assert.match((await blameHover(0)) ?? "", /Fixture/);
-  const insertion = new vscode.WorkspaceEdit();
-  insertion.insert(document.uri, new vscode.Position(0, 0), "unsaved new line\n");
-  await vscode.workspace.applyEdit(insertion);
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.match((await blameHover(0)) ?? "", /Uncommitted changes/);
-  assert.match((await blameHover(1)) ?? "", /Host Test/);
-  await vscode.commands.executeCommand("workbench.action.files.revert");
+  const otherHover = vscode.languages.registerHoverProvider(
+    { language: "plaintext", scheme: "file" },
+    {
+      provideHover: (_document, position) =>
+        new vscode.Hover("Other extension hover", new vscode.Range(position, position)),
+    },
+  );
+  try {
+    await vscode.window.showTextDocument(document);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    for (const position of [new vscode.Position(0, 0), document.lineAt(0).range.end]) {
+      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+        "vscode.executeHoverProvider",
+        document.uri,
+        position,
+      );
+      const contents = (hovers ?? []).flatMap((hover) => hover.contents);
+      const text = contents
+        .map((content) => (typeof content === "string" ? content : content.value))
+        .join("\n");
+      assert.match(text, /Other extension hover/, "Other providers remain available");
+      assert.doesNotMatch(text, /Git Insights/, "Blame is confined to its decoration hover");
+    }
+  } finally {
+    otherHover.dispose();
+  }
   await vscode.commands.executeCommand("gitInsights.lineHistory");
   await vscode.commands.executeCommand("gitInsights.refresh");
   await vscode.commands.executeCommand(
