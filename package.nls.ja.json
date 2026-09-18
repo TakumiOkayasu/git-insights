@@ -7,5 +7,8 @@
   "rebase": "Rebaseエディタを開く",
   "codeLens": "関数やクラスの上に最終変更者を表示します。",
   "gravatar": "Gravatarアバターを取得します。有効にするとメールアドレスのSHA-256ハッシュをGravatarへ送信します。",
-  "limit": "履歴に表示するコミットの上限。"
+  "limit": "履歴に表示するコミットの上限。",
+  "graph": "リポジトリグラフを開く",
+  "repositories": "リポジトリ",
+  "repositoriesWelcome": "Gitリポジトリを含むフォルダーを開いてください。\\n[コミットグラフを開く](command:gitInsights.openGraph)"
 }

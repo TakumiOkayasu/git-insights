@@ -7,5 +7,8 @@
   "rebase": "Open Rebase Editor",
   "codeLens": "Show the latest author above functions and classes.",
   "gravatar": "Fetch Gravatar avatars. Sends SHA-256 email hashes to Gravatar when enabled.",
-  "limit": "Maximum commits shown in history."
+  "limit": "Maximum commits shown in history.",
+  "graph": "Open Repository Graph",
+  "repositories": "Repositories",
+  "repositoriesWelcome": "Open a folder containing a Git repository.\\n[Open Commit Graph](command:gitInsights.openGraph)"
 }

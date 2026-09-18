@@ -15,6 +15,7 @@ import {
 import { createComparisonFactory, type ComparisonFactory } from "./git-comparison";
 import { createComparisonPresenter } from "./vscode-comparison";
 import type { BuiltinGitExtension, GitRepository } from "./vscode-git";
+import { GraphWorkbench } from "./graph-workbench";
 // English strings are translation keys, resolved by VS Code from l10n/bundle.l10n.ja.json.
 const labels = () => translateLabels((key) => vscode.l10n.t(key));
 const postMessage = (view: vscode.Webview, message: HostMessage) => view.postMessage(message);
@@ -28,7 +29,7 @@ function html(webview: vscode.Webview, extension: vscode.Uri, mode: string): str
     enableScripts: true,
     localResourceRoots: [vscode.Uri.joinPath(extension, "dist", "webview")],
   };
-  return `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${resource("main.css")}"></head><body data-mode="${mode}"><main id="app"></main><script nonce="${nonce}" src="${resource("main.js")}"></script></body></html>`;
+  return `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src blob:; font-src data: ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${resource("main.css")}"></head><body data-mode="${mode}"><main id="app"></main><script nonce="${nonce}" src="${resource("main.js")}"></script></body></html>`;
 }
 
 class Avatars {
@@ -464,13 +465,20 @@ export async function activate(context: vscode.ExtensionContext) {
     createComparisonPresenter(revisions),
   );
   const history = new History(context, git, avatars, comparisons);
+  const graph = new GraphWorkbench(git, api, comparisons, (view) =>
+    html(view, context.extensionUri, "graph"),
+  );
   const lenses = new Lenses(git);
   const refresh = () => {
     lenses.refresh();
     history.schedule();
+    graph.schedule();
   };
   context.subscriptions.push(
     history,
+    graph,
+    vscode.window.registerTreeDataProvider("gitInsights.repositories", graph),
+    vscode.commands.registerCommand("gitInsights.openGraph", (id?: string) => graph.show(id)),
     lenses,
     vscode.window.registerWebviewViewProvider("gitInsights.history", history),
     vscode.window.registerCustomEditorProvider("gitInsights.rebase", new RebaseEditor(context)),
@@ -502,8 +510,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidSaveTextDocument(refresh),
   );
   if (api) {
-    const watch = (repository: GitRepository) =>
+    const watch = (repository: GitRepository) => {
       context.subscriptions.push(repository.state.onDidChange(refresh));
+      graph.schedule();
+    };
     api.repositories.forEach(watch);
     context.subscriptions.push(api.onDidOpenRepository(watch));
   }

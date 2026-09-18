@@ -33,5 +33,8 @@
   "The document changed. Review the updated plan and try again.": "ファイルが変更されました。最新の計画を確認してから再試行してください。",
   "This remote is not supported.": "このリモートURLには対応していません。",
   "Could not save the rebase plan.": "Rebase計画を保存できませんでした。",
-  "Last changed by {0}, {1}": "最終変更: {0}、{1}"
+  "Last changed by {0}, {1}": "最終変更: {0}、{1}",
+  "Repository Graph": "リポジトリグラフ",
+  "Fetching remotes…": "リモートを取得中…",
+  "Switch local branch": "ローカルブランチを切り替え"
 }

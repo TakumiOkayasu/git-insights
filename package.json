@@ -1,7 +1,7 @@
 {
   "name": "git-insights",
   "displayName": "Git Insights",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "%description%",
   "categories": [
     "Other"
@@ -59,12 +59,25 @@
         "command": "gitInsights.openRebase",
         "title": "%rebase%",
         "category": "Git Insights"
+      },
+      {
+        "command": "gitInsights.openGraph",
+        "title": "%graph%",
+        "category": "Git Insights",
+        "icon": "$(git-branch)"
       }
     ],
     "viewsContainers": {
       "panel": [
         {
           "id": "gitInsights",
+          "title": "Git Insights",
+          "icon": "media/icon.png"
+        }
+      ],
+      "activitybar": [
+        {
+          "id": "gitInsightsRepository",
           "title": "Git Insights",
           "icon": "media/icon.png"
         }
@@ -76,6 +89,12 @@
           "id": "gitInsights.history",
           "name": "%history%",
           "type": "webview"
+        }
+      ],
+      "gitInsightsRepository": [
+        {
+          "id": "gitInsights.repositories",
+          "name": "%repositories%"
         }
       ]
     },
@@ -133,7 +152,13 @@
           "description": "%limit%"
         }
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "gitInsights.repositories",
+        "contents": "%repositoriesWelcome%"
+      }
+    ]
   },
   "activationEvents": [
     "onStartupFinished"
