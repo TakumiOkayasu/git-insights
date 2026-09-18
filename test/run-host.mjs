@@ -12,6 +12,7 @@ try {
   git("config", "user.name", "Host Test");
   git("config", "user.email", "host@example.invalid");
   git("config", "commit.gpgsign", "false");
+  git("config", "core.autocrlf", "false");
   await writeFile(path.join(fixture, "sample.txt"), "function\nbody\nend\n");
   git("add", ".");
   git("commit", "-m", "Fixture");

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import assert from "node:assert/strict";
+import { Git } from "../src/git";
 export async function run() {
   const extension = vscode.extensions.getExtension("TakumiOkayasu.git-insights");
   assert.ok(extension, "Extension discovered");
@@ -27,10 +28,27 @@ export async function run() {
     },
   );
   await vscode.window.showTextDocument(document);
-  const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
-    "vscode.executeCodeLensProvider",
-    document.uri,
-  );
+  const gitApi = (await vscode.extensions.getExtension("vscode.git")!.activate()).getAPI(1);
+  const git = new Git(gitApi.git.path);
+  console.log("Host fixture", {
+    file: document.uri.fsPath,
+    language: document.languageId,
+    git: git.executable,
+  });
+  console.log("Host blame", await git.blame(folder.fsPath, document.uri.fsPath));
+  console.log("Host diff", await git.run(folder.fsPath, ["diff", "HEAD", "--", "sample.txt"]));
+  let lenses: vscode.CodeLens[] = [];
+  // Language providers and Git repository discovery settle asynchronously at startup.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    lenses =
+      (await vscode.commands.executeCommand<vscode.CodeLens[]>(
+        "vscode.executeCodeLensProvider",
+        document.uri,
+      )) ?? [];
+    if (lenses.some((l) => l.command?.command === "gitInsights.fileHistory")) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  console.log("Host lenses", lenses);
   assert.ok(
     lenses?.some(
       (l) =>
