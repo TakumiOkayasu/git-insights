@@ -1,0 +1,77 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/ci.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub Release (select an existing version tag)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      asset: ${{ steps.version.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate version and tag
+        id: version
+        env:
+          PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+            throw new Error('Release requires a stable version such as 0.1.2.');
+          }
+          if (process.env.PUBLISH === 'true' && process.env.GITHUB_REF !== `refs/tags/v${version}`) {
+            throw new Error(`Select or push the existing tag v${version}; tag and package.json must match.`);
+          }
+          if (!/^[a-z0-9-]+$/.test(name)) throw new Error('Invalid package name.');
+          appendFileSync(process.env.GITHUB_OUTPUT, `asset=${name}-${version}.vsix\n`);
+          NODE
+  check:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+  publish:
+    if: github.event_name == 'push' || inputs.publish
+    needs: [validate, check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: git-insights-ubuntu-latest
+          path: release
+      - name: Publish tested VSIX
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          ASSET: ${{ needs.validate.outputs.asset }}
+        working-directory: release
+        run: |
+          test -f "$ASSET"
+          sha256sum "$ASSET" > SHA256SUMS.txt
+          gh release create "$TAG" "$ASSET" SHA256SUMS.txt \
+            --verify-tag --draft --title "$TAG" --generate-notes
+          gh release edit "$TAG" --draft=false
