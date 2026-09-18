@@ -1,0 +1,11 @@
+{
+  "description": "Private-by-default Git history, CodeLens and interactive rebase editor.",
+  "fileHistory": "Show File History",
+  "lineHistory": "Show Line History",
+  "history": "History",
+  "refresh": "Refresh",
+  "rebase": "Open Rebase Editor",
+  "codeLens": "Show the latest author above functions and classes.",
+  "gravatar": "Fetch Gravatar avatars. Sends SHA-256 email hashes to Gravatar when enabled.",
+  "limit": "Maximum commits shown in history."
+}

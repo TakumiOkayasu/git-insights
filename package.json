@@ -1,0 +1,159 @@
+{
+  "name": "git-insights",
+  "displayName": "Git Insights",
+  "version": "0.1.2",
+  "description": "%description%",
+  "categories": [
+    "Other"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TakumiOkayasu/git-insights.git"
+  },
+  "publisher": "TakumiOkayasu",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "vite build --config vite.extension.config.ts && vite build --config vite.webview.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src test",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "test": "vitest run",
+    "test:host": "node test/run-host.mjs",
+    "package": "bun run build && vsce package --no-dependencies",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.96.0",
+    "@vscode/test-electron": "^2.5.0",
+    "@vscode/vsce": "^3.0.0",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.0.0",
+    "typescript": "7.0.2",
+    "vite": "^8.0.0",
+    "vitest": "^4.0.0"
+  },
+  "l10n": "./l10n",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitInsights.fileHistory",
+        "title": "%fileHistory%",
+        "category": "Git Insights"
+      },
+      {
+        "command": "gitInsights.lineHistory",
+        "title": "%lineHistory%",
+        "category": "Git Insights"
+      },
+      {
+        "command": "gitInsights.refresh",
+        "title": "%refresh%",
+        "category": "Git Insights",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitInsights.openRebase",
+        "title": "%rebase%",
+        "category": "Git Insights"
+      }
+    ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "gitInsights",
+          "title": "Git Insights",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "gitInsights": [
+        {
+          "id": "gitInsights.history",
+          "name": "%history%",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "gitInsights.fileHistory",
+          "when": "resourceScheme == file",
+          "group": "gitInsights"
+        },
+        {
+          "command": "gitInsights.lineHistory",
+          "when": "resourceScheme == file",
+          "group": "gitInsights"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "gitInsights.refresh",
+          "when": "view == gitInsights.history",
+          "group": "navigation"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "gitInsights.rebase",
+        "displayName": "%rebase%",
+        "selector": [
+          {
+            "filenamePattern": "**/git-rebase-todo"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "configuration": {
+      "title": "Git Insights",
+      "properties": {
+        "gitInsights.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%codeLens%"
+        },
+        "gitInsights.gravatar.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%gravatar%"
+        },
+        "gitInsights.history.limit": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "%limit%"
+        }
+      }
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "icon": "media/icon.png",
+  "engines": {
+    "node": ">=22.12.0",
+    "vscode": "^1.96.0"
+  },
+  "packageManager": "bun@1.4.2",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": false
+  }
+}

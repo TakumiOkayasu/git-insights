@@ -1,0 +1,15 @@
+.git/**
+.github/**
+.vscode/**
+.vscode-test/**
+node_modules/**
+src/**
+test/**
+dist-test/**
+*.config.ts
+tsconfig.json
+*.vsix
+dist/**/*.map
+
+bun.lock
+docs/**

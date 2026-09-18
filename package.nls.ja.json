@@ -1,0 +1,11 @@
+{
+  "description": "プライバシーを重視したGit履歴、CodeLens、対話的Rebaseエディタ。",
+  "fileHistory": "ファイル履歴を表示",
+  "lineHistory": "行履歴を表示",
+  "history": "履歴",
+  "refresh": "更新",
+  "rebase": "Rebaseエディタを開く",
+  "codeLens": "関数やクラスの上に最終変更者を表示します。",
+  "gravatar": "Gravatarアバターを取得します。有効にするとメールアドレスのSHA-256ハッシュをGravatarへ送信します。",
+  "limit": "履歴に表示するコミットの上限。"
+}
