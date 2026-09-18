@@ -1,7 +1,7 @@
 {
   "name": "git-insights",
   "displayName": "Git Insights",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "%description%",
   "categories": [
     "Other"
@@ -150,6 +150,11 @@
           "minimum": 10,
           "maximum": 1000,
           "description": "%limit%"
+        },
+        "gitInsights.blame.enabled": {
+          "default": true,
+          "description": "%blame%",
+          "type": "boolean"
         }
       }
     },
