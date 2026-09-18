@@ -11,20 +11,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11.19.0
+          bun-version: 1.4.2
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: xvfb-run -a pnpm test:host
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: xvfb-run -a bun run test:host
         if: runner.os == 'Linux'
-      - run: pnpm test:host
+      - run: bun run test:host
         if: runner.os == 'Windows'
-      - run: pnpm package
+      - run: bun run package
       - uses: actions/upload-artifact@v4
         with:
           name: git-insights-${{ matrix.os }}

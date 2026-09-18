@@ -1,6 +1,7 @@
 import "./style.css";
 import type { Commit, Change } from "../git";
 import { actions, type TodoRow } from "../rebase";
+import { decodeAvatar } from "../avatar";
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
@@ -266,9 +267,12 @@ window.addEventListener("message", (event) => {
   if (m.type === "details" && m.generation === generation) renderDetails(m.sha, m.changes);
   if (m.type === "avatar" && m.generation === generation) {
     const avatar = avatars.get(m.sha);
-    if (avatar && /^data:image\/(png|jpeg|gif|webp);base64,/.test(m.avatar)) {
+    const decoded = decodeAvatar(m.avatar);
+    if (avatar && decoded) {
       const img = el("img");
-      img.src = m.avatar;
+      const url = URL.createObjectURL(new Blob([decoded.bytes], { type: decoded.mime }));
+      img.onload = img.onerror = () => URL.revokeObjectURL(url);
+      img.src = url;
       img.alt = "";
       avatar.replaceChildren(img);
     }

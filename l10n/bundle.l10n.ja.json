@@ -28,7 +28,7 @@
   "Save the plan, then close this tab to let Git continue.": "計画を保存し、このタブを閉じるとGitが処理を続行します。",
   "Advanced rebase commands require the text editor.": "高度なRebaseコマンドが含まれています。テキストエディタで編集してください。",
   "History limit reached. Increase the limit in settings to see more.": "表示件数の上限に達しました。続きは設定で上限を増やしてください。",
-  "Save or revert changes before viewing line history.": "行履歴を見るには、未コミットの変更をコミットまたは取り消してください（未保存の変更も対象です）。",
+  "Commit or discard changes before viewing line history.": "行履歴を見るには、未コミットの変更をコミットまたは取り消してください（未保存の変更も対象です）。",
   "Squash or fixup requires a preceding commit.": "squash / fixupの前には、統合先のコミットが必要です。",
   "The document changed. Review the updated plan and try again.": "ファイルが変更されました。最新の計画を確認してから再試行してください。",
   "This remote is not supported.": "このリモートURLには対応していません。",

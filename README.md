@@ -1,10 +1,12 @@
 # Git Insights
 
+レビューでの技術選定と変更理由は [設計判断](docs/decisions.md) に記録しています。
+
 VS Codeでファイル・選択行の変更履歴と最終変更者を確認し、対話的Rebaseの計画を編集する拡張です。日本語／英語に対応します。MITライセンス。Marketplaceへの公開は行わず、VSIXでインストールします。
 
 ## インストール
 
-VS Code 1.96以降とGitが必要です。VS Codeの拡張機能画面の「…」→「VSIXからのインストール」で `git-insights-0.1.0.vsix` を選んでください。
+VS Code 1.96以降とGitが必要です。VS Codeの拡張機能画面の「…」→「VSIXからのインストール」で `git-insights-0.1.1.vsix` を選んでください。
 
 WSLでは対象フォルダーを「WSLで再度開く」で開き、拡張をWSL側にインストールしてください。Gitコマンドはワークスペース側で実行します。信頼されていないワークスペースでは無効です。
 
@@ -53,16 +55,16 @@ git -c sequence.editor="code --wait" rebase -i HEAD~3
 
 ## 開発
 
-Node.js 24とpnpm 11.19.0を推奨します。
+Node.js 24とBun 1.4.2を推奨します。
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm check
-pnpm test:host
-pnpm package
+bun install --frozen-lockfile
+bun run check
+bun run test:host
+bun run package
 ```
 
-`pnpm test:host` は独立した一時リポジトリとプロファイルでVS Codeを起動します。初回はVS Codeをダウンロードします。既存の実行ファイルを使う場合は `VSCODE_EXECUTABLE_PATH` を指定してください。LinuxのGUIなし環境では `xvfb-run -a pnpm test:host` を使います。F5でも拡張開発ホストを起動できます。
+`bun run test:host` は独立した一時リポジトリとプロファイルでVS Codeを起動します。初回はVS Codeをダウンロードします。既存の実行ファイルを使う場合は `VSCODE_EXECUTABLE_PATH` を指定してください。LinuxのGUIなし環境では `xvfb-run -a bun run test:host` を使います。F5でも拡張開発ホストを起動できます。
 
 構成: TypeScript、Vite 8、Vanilla TS Webview、oxlint／oxfmt、Vitest。Git CLIはシェルを介さず実行し、タイムアウトと出力量の制限があります。WebviewはCSP・ローカルスクリプト・`textContent`を使用し、コミットメッセージをHTMLとして解釈しません。
 

@@ -4,39 +4,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { Git, type Commit, type Change, type Blame, remoteCommitUrl } from "./git";
 import { parseTodo, serializeTodo, type TodoRow } from "./rebase";
 
-const labelKeys = [
-  "File",
-  "Line",
-  "Refresh",
-  "Pin",
-  "Unpin",
-  "Open diff",
-  "Copy SHA",
-  "Open on remote",
-  "Today",
-  "This week",
-  "Last week",
-  "Over a week ago",
-  "Over a month ago",
-  "Author",
-  "Files changed",
-  "Loading…",
-  "No history found.",
-  "Open a tracked file to see its history.",
-  "Save",
-  "Open as text",
-  "Move up",
-  "Move down",
-  "Action",
-  "Commit",
-  "Rebase editor",
-  "Save the plan, then close this tab to let Git continue.",
-  "Advanced rebase commands require the text editor.",
-  "History limit reached. Increase the limit in settings to see more.",
-  "Save or revert changes before viewing line history.",
-  "Squash or fixup requires a preceding commit.",
-  "The document changed. Review the updated plan and try again.",
-];
+import { labelKeys } from "./labels";
+// English strings are translation keys, resolved by VS Code from l10n/bundle.l10n.ja.json.
 const labels = () => Object.fromEntries(labelKeys.map((key) => [key, vscode.l10n.t(key)]));
 const config = () => vscode.workspace.getConfiguration("gitInsights");
 function html(webview: vscode.Webview, extension: vscode.Uri, mode: string): string {
@@ -47,7 +16,7 @@ function html(webview: vscode.Webview, extension: vscode.Uri, mode: string): str
     enableScripts: true,
     localResourceRoots: [vscode.Uri.joinPath(extension, "dist", "webview")],
   };
-  return `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${resource("main.css")}"></head><body data-mode="${mode}"><main id="app"></main><script nonce="${nonce}" src="${resource("main.js")}"></script></body></html>`;
+  return `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${resource("main.css")}"></head><body data-mode="${mode}"><main id="app"></main><script nonce="${nonce}" src="${resource("main.js")}"></script></body></html>`;
 }
 
 class Avatars {
@@ -198,7 +167,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
     try {
       const document = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === target.file);
       if (this.mode === "line" && document?.isDirty)
-        throw new Error(vscode.l10n.t("Save or revert changes before viewing line history."));
+        throw new Error(vscode.l10n.t("Commit or discard changes before viewing line history."));
       const root = await this.git.root(target.file);
       if (
         this.mode === "line" &&
@@ -213,7 +182,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
           ])
         ).length
       )
-        throw new Error(vscode.l10n.t("Save or revert changes before viewing line history."));
+        throw new Error(vscode.l10n.t("Commit or discard changes before viewing line history."));
       const limit = Math.max(
         10,
         Math.min(1000, Math.floor(config().get<number>("history.limit", 100))),
