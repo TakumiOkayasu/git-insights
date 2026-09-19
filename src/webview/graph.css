@@ -355,7 +355,7 @@ body[data-mode="graph"] {
   .graph-inspector {
     grid-column: 2;
     width: auto;
-    max-height: 240px;
+    max-height: min(240px, 40vh);
     border-left: 0;
     border-top: 1px solid var(--vscode-panel-border, #343434);
   }

@@ -6,8 +6,10 @@ import { parseGraphRequest, type GraphMessage } from "./graph-protocol";
 import type { BuiltinGitApi } from "./vscode-git";
 import type { ComparisonFactory } from "./git-comparison";
 
-export class GraphWorkbench implements vscode.Disposable, vscode.TreeDataProvider<vscode.TreeItem> {
-  private panel?: vscode.WebviewPanel;
+export class GraphWorkbench
+  implements vscode.Disposable, vscode.TreeDataProvider<vscode.TreeItem>, vscode.WebviewViewProvider
+{
+  private view?: vscode.WebviewView;
   private root = "";
   private focus = "";
   private limit = 300;
@@ -52,30 +54,32 @@ export class GraphWorkbench implements vscode.Disposable, vscode.TreeDataProvide
       this.root = id;
       this.focus = "";
     }
-    if (this.panel) {
-      this.panel.reveal();
-      await this.refresh();
-      return;
-    }
-    const panel = vscode.window.createWebviewPanel(
-      "gitInsights.graph",
-      vscode.l10n.t("Repository Graph"),
-      vscode.ViewColumn.Active,
-      { retainContextWhenHidden: true },
-    );
-    this.panel = panel;
-    panel.webview.html = this.html(panel.webview);
-    panel.webview.onDidReceiveMessage((value: unknown) => {
+    await vscode.commands.executeCommand("gitInsights.graph.focus");
+    this.view?.show();
+    await this.refresh();
+  }
+  resolveWebviewView(view: vscode.WebviewView) {
+    this.view = view;
+    const listener = view.webview.onDidReceiveMessage((value: unknown) => {
       void this.message(value).catch((e) =>
         this.post({ type: "graphError", message: e instanceof Error ? e.message : String(e) }),
       );
     });
-    panel.onDidDispose(() => {
-      if (this.panel === panel) this.panel = undefined;
+    const visibility = view.onDidChangeVisibility(() => {
+      if (view.visible) void this.refresh();
+    });
+    view.onDidDispose(() => {
+      listener.dispose();
+      visibility.dispose();
+      if (this.view === view) this.view = undefined;
       this.generation++;
       this.selectionId++;
+      this.snapshot = undefined;
+      this.selection = undefined;
     });
+    view.webview.html = this.html(view.webview);
   }
+
   schedule() {
     this.changed.fire();
     clearTimeout(this.timer);
@@ -84,10 +88,10 @@ export class GraphWorkbench implements vscode.Disposable, vscode.TreeDataProvide
     }, 400);
   }
   private post(message: GraphMessage) {
-    return this.panel?.webview.postMessage(message);
+    return this.view?.webview.postMessage(message);
   }
   async refresh() {
-    if (!this.panel) return;
+    if (!this.view?.visible) return;
     const repositories = this.repositories();
     if (!repositories.some((r) => r.id === this.root)) {
       this.root = repositories[0]?.id ?? "";
@@ -219,7 +223,9 @@ export class GraphWorkbench implements vscode.Disposable, vscode.TreeDataProvide
   }
   dispose() {
     clearTimeout(this.timer);
-    this.panel?.dispose();
+    this.view = undefined;
+    this.generation++;
+    this.selectionId++;
     this.changed.dispose();
   }
 }

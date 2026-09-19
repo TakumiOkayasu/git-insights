@@ -73,6 +73,11 @@
           "id": "gitInsights",
           "title": "Git Insights",
           "icon": "media/icon.png"
+        },
+        {
+          "id": "gitInsightsGraph",
+          "title": "%graphView%",
+          "icon": "media/icon.png"
         }
       ],
       "activitybar": [
@@ -95,6 +100,13 @@
         {
           "id": "gitInsights.repositories",
           "name": "%repositories%"
+        }
+      ],
+      "gitInsightsGraph": [
+        {
+          "id": "gitInsights.graph",
+          "name": "%graphView%",
+          "type": "webview"
         }
       ]
     },

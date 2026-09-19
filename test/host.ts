@@ -146,25 +146,24 @@ export async function run() {
   );
   symbols.dispose();
   await vscode.commands.executeCommand("gitInsights.openGraph", folder.fsPath);
-  const graphOpen = () =>
-    vscode.window.tabGroups.all
-      .flatMap((group) => group.tabs)
-      .some(
-        (tab) =>
-          tab.input instanceof vscode.TabInputWebview &&
-          tab.input.viewType.includes("gitInsights.graph"),
-      );
-  for (let attempt = 0; attempt < 20 && !graphOpen(); attempt++)
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  await vscode.commands.executeCommand("gitInsights.graph.focus");
+  const editorTabs = () => vscode.window.tabGroups.all.flatMap((group) => group.tabs);
   assert.ok(
-    vscode.window.tabGroups.all
-      .flatMap((group) => group.tabs)
-      .some(
-        (tab) =>
-          tab.input instanceof vscode.TabInputWebview &&
-          tab.input.viewType.includes("gitInsights.graph"),
-      ),
-    "Repository graph opens in an editor tab",
+    !editorTabs().some(
+      (tab) =>
+        tab.input instanceof vscode.TabInputWebview &&
+        tab.input.viewType.includes("gitInsights.graph"),
+    ),
+    "Repository graph does not open an editor tab",
   );
+  assert.ok(
+    editorTabs().some(
+      (tab) =>
+        tab.input instanceof vscode.TabInputCustom && tab.input.viewType === "gitInsights.rebase",
+    ),
+    "Opening the graph preserves the rebase editor",
+  );
+  await vscode.commands.executeCommand("workbench.action.closePanel");
+  await vscode.commands.executeCommand("gitInsights.openGraph", folder.fsPath);
   console.log("Git Insights: extension host smoke tests passed");
 }

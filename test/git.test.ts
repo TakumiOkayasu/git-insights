@@ -168,3 +168,30 @@ describe("rebase plans", () => {
     expect(() => serializeTodo(todo, todo.rows)).toThrow("text editor");
   });
 });
+
+describe("GitLab commit navigation", () => {
+  const sha = "a".repeat(40);
+  it.each([
+    "https://gitlab.com/group/subgroup/project.git",
+    "https://gitlab.com/group/subgroup/project.git/",
+    "git@gitlab.com:group/subgroup/project.git",
+    "ssh://git@gitlab.com/group/subgroup/project.git",
+    "ssh://git@gitlab.com:22/group/subgroup/project.git",
+  ])("preserves nested namespaces for %s", (remote) => {
+    expect(remoteCommitUrl(remote, sha)).toBe(
+      `https://gitlab.com/group/subgroup/project/-/commit/${sha}`,
+    );
+  });
+  it.each([
+    "https://gitlab.com",
+    "https://gitlab.com/group",
+    "https://gitlab.com/group/project?token=secret",
+    "https://gitlab.com/group/project#fragment",
+    "https://user:secret@gitlab.com/group/project",
+    "https://gitlab.com.example.invalid/group/project",
+    "https://gitlab.example.invalid/group/project",
+    "http://gitlab.com/group/project",
+  ])("does not invent or expose navigation for %s", (remote) => {
+    expect(remoteCommitUrl(remote, sha)).toBeUndefined();
+  });
+});
