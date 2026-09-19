@@ -111,7 +111,13 @@ export function parseBlame(text: string): Blame[] {
 
 export class Git {
   constructor(public executable = "git") {}
-  run(root: string, args: string[], signal?: AbortSignal, input?: string): Promise<string> {
+  run(
+    root: string,
+    args: string[],
+    signal?: AbortSignal,
+    input?: string,
+    environment?: NodeJS.ProcessEnv,
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(
         this.executable,
@@ -120,7 +126,13 @@ export class Git {
           cwd: root,
           shell: false,
           windowsHide: true,
-          env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+          env: {
+            ...process.env,
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_OPTIONAL_LOCKS: "0",
+            LC_ALL: "C",
+            ...environment,
+          },
           signal,
         },
       );

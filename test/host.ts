@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import assert from "node:assert/strict";
 import { Git } from "../src/git";
 import { blameHover, blameCommands } from "../src/blame-hover";
+import { CommitOperations } from "../src/commit-operation";
+import { OperationEditor } from "../src/operation-editor";
 export async function run() {
   const extension = vscode.extensions.getExtension("TakumiOkayasu.git-insights");
   assert.ok(extension, "Extension discovered");
@@ -166,4 +168,34 @@ export async function run() {
   await vscode.commands.executeCommand("workbench.action.closePanel");
   await vscode.commands.executeCommand("gitInsights.openGraph", folder.fsPath);
   console.log("Git Insights: extension host smoke tests passed");
+  // Exercise editor placement and the Node editor bridge under the extension host.
+  await git.run(folder.fsPath, ["add", "git-rebase-todo"]);
+  await git.run(folder.fsPath, ["commit", "-m", "Track todo fixture"]);
+  const before = await git.head(folder.fsPath);
+  const operations = new CommitOperations(git);
+  const editor = new OperationEditor(
+    operations,
+    () => "<html><body>Review</body></html>",
+    () => {},
+  );
+  try {
+    await editor.open(folder.fsPath, "reword", commit.sha);
+    assert.ok(
+      editorTabs().some(
+        (tab) =>
+          tab.input instanceof vscode.TabInputWebview &&
+          tab.input.viewType.includes("gitInsights.operation"),
+      ),
+    );
+    assert.equal(await git.head(folder.fsPath), before, "Opening review does not mutate Git");
+  } finally {
+    editor.dispose();
+  }
+  const operation = await operations.prepare(folder.fsPath, "reword", commit.sha);
+  await operation.execute("Reworded host fixture\n\n# keep this line\n");
+  assert.match(
+    await git.run(folder.fsPath, ["show", "-s", "--format=%B", "HEAD~1"]),
+    /# keep this line/,
+  );
+  console.log("Git Insights: commit operation host tests passed");
 }

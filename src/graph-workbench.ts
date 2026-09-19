@@ -5,6 +5,7 @@ import { createRepository, type RepositorySnapshot, type RevisionSelection } fro
 import { parseGraphRequest, type GraphMessage } from "./graph-protocol";
 import type { BuiltinGitApi } from "./vscode-git";
 import type { ComparisonFactory } from "./git-comparison";
+import type { OperationKind } from "./commit-operation-kind";
 
 export class GraphWorkbench
   implements vscode.Disposable, vscode.TreeDataProvider<vscode.TreeItem>, vscode.WebviewViewProvider
@@ -26,6 +27,11 @@ export class GraphWorkbench
     private readonly api: BuiltinGitApi | undefined,
     private readonly comparisons: ComparisonFactory,
     private readonly html: (view: vscode.Webview) => string,
+    private readonly openOperation: (
+      root: string,
+      kind: OperationKind,
+      sha: string,
+    ) => Promise<void>,
   ) {}
   private repositories() {
     return (this.api?.repositories ?? []).map((repo) => ({
@@ -62,7 +68,10 @@ export class GraphWorkbench
     this.view = view;
     const listener = view.webview.onDidReceiveMessage((value: unknown) => {
       void this.message(value).catch((e) =>
-        this.post({ type: "graphError", message: e instanceof Error ? e.message : String(e) }),
+        this.post({
+          type: "graphError",
+          message: vscode.l10n.t(e instanceof Error ? e.message : String(e)),
+        }),
       );
     });
     const visibility = view.onDidChangeVisibility(() => {
@@ -187,6 +196,11 @@ export class GraphWorkbench
     }
     if (!("generation" in m) || m.generation !== this.generation) return;
     const generation = this.generation;
+    if (m.type === "operation") {
+      if (snapshot.commits.some((c) => c.sha === m.sha))
+        await this.openOperation(root, m.kind, m.sha);
+      return;
+    }
     const known = (sha: string) =>
       snapshot.commits.some((c) => c.sha === sha) || snapshot.refs.some((r) => r.sha === sha);
     if (m.type === "copy") {

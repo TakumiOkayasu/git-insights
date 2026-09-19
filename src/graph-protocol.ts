@@ -1,5 +1,6 @@
 import type { RepositorySnapshot, Reference, RevisionSelection } from "./repository";
 import { isCommit, isChange } from "./protocol";
+import { isOperationKind, type OperationKind } from "./commit-operation-kind";
 const isSha = (v: unknown): v is string =>
   typeof v === "string" && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v);
 export interface RepositoryOption {
@@ -13,6 +14,7 @@ export type GraphRequest =
   | { type: "more" }
   | { type: "inspect"; generation: number; sha: string }
   | { type: "copy"; generation: number; sha: string }
+  | { type: "operation"; generation: number; sha: string; kind: OperationKind }
   | { type: "compare"; generation: number; base: string; target: string; commonBase: boolean }
   | { type: "diff"; generation: number; selection: number; path: string };
 interface Context {
@@ -41,6 +43,10 @@ const array = <T>(v: unknown, guard: (x: unknown) => x is T): v is T[] =>
 export function parseGraphRequest(v: unknown): GraphRequest | undefined {
   if (!object(v)) return;
   switch (v.type) {
+    case "operation":
+      if (number(v.generation) && isSha(v.sha) && isOperationKind(v.kind))
+        return { type: v.type, generation: v.generation, sha: v.sha, kind: v.kind };
+      return;
     case "ready":
     case "refresh":
     case "fetch":

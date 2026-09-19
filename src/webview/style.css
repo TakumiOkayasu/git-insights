@@ -5,6 +5,39 @@
   color: var(--vscode-foreground);
   background: var(--vscode-panel-background, var(--vscode-editor-background));
 }
+.operation-editor {
+  max-width: 900px;
+  padding: 20px;
+  margin: auto;
+}
+.operation-editor dt {
+  font-weight: bold;
+  margin-top: 12px;
+}
+.operation-editor dd {
+  margin-left: 0;
+  overflow-wrap: anywhere;
+}
+.operation-editor pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.operation-editor textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+  font: inherit;
+}
+.operation-editor textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+.operation-editor button {
+  border: 1px solid var(--vscode-button-border, var(--vscode-focusBorder));
+  margin-right: 8px;
+}
 * {
   box-sizing: border-box;
 }

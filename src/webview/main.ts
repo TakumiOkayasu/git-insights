@@ -1,5 +1,6 @@
 import "./style.css";
 import { mountGraph } from "./graph";
+import { mountOperation } from "./operation";
 import type { Commit, Change } from "../git";
 import { translateLabels, type LabelKey } from "../labels";
 import {
@@ -19,6 +20,8 @@ const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
 if (document.body.dataset.mode === "graph")
   mountGraph(app, (message) => vscode.postMessage(message));
+if (document.body.dataset.mode === "operation")
+  mountOperation(app, (message) => vscode.postMessage(message));
 let labels = translateLabels((key) => key);
 let locale = "en";
 let generation = 0;
