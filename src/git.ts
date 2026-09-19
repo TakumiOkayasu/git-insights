@@ -239,14 +239,16 @@ export function remoteCommitUrl(remote: string, sha: string): string | undefined
   if (!isSha(sha)) return;
   const normalized = remote
     .replace(/^git@([^:]+):/, "https://$1/")
-    .replace(/^ssh:\/\/git@/, "https://")
-    .replace(/\.git$/, "");
+    .replace(/^ssh:\/\/git@/, "https://");
   try {
     const url = new URL(normalized);
-    if (url.protocol !== "https:" || url.username || url.password) return;
-    if (url.hostname === "github.com") return `${url.origin}${url.pathname}/commit/${sha}`;
-    if (url.hostname === "gitlab.com") return `${url.origin}${url.pathname}/-/commit/${sha}`;
-    if (url.hostname === "bitbucket.org") return `${url.origin}${url.pathname}/commits/${sha}`;
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return;
+    if (remote.startsWith("ssh://")) url.port = "";
+    const project = url.pathname.replace(/\/+$/, "").replace(/\.git$/, "");
+    if (project.split("/").filter(Boolean).length < 2) return;
+    if (url.hostname === "github.com") return `${url.origin}${project}/commit/${sha}`;
+    if (url.hostname === "gitlab.com") return `${url.origin}${project}/-/commit/${sha}`;
+    if (url.hostname === "bitbucket.org") return `${url.origin}${project}/commits/${sha}`;
   } catch {
     /* Unsupported remote. */
   }

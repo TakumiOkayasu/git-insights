@@ -11,5 +11,6 @@
   "graph": "リポジトリグラフを開く",
   "repositories": "リポジトリ",
   "repositoriesWelcome": "Gitリポジトリを含むフォルダーを開いてください。\\n[コミットグラフを開く](command:gitInsights.openGraph)",
-  "blame": "選択中の行のBlame注釈とコミット詳細のホバーを表示します。"
+  "blame": "選択中の行のBlame注釈とコミット詳細のホバーを表示します。",
+  "graphView": "リポジトリグラフ"
 }

@@ -480,6 +480,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     history,
     graph,
+    vscode.window.registerWebviewViewProvider("gitInsights.graph", graph),
     vscode.window.registerTreeDataProvider("gitInsights.repositories", graph),
     vscode.commands.registerCommand("gitInsights.openGraph", (id?: string) => graph.show(id)),
     lenses,
