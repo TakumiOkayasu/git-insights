@@ -180,13 +180,15 @@ export async function run() {
   );
   try {
     await editor.open(folder.fsPath, "reword", commit.sha);
-    assert.ok(
+    const operationOpen = () =>
       editorTabs().some(
         (tab) =>
           tab.input instanceof vscode.TabInputWebview &&
           tab.input.viewType.includes("gitInsights.operation"),
-      ),
-    );
+      );
+    for (let attempt = 0; attempt < 20 && !operationOpen(); attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(operationOpen(), "Commit operation opens in an editor tab");
     assert.equal(await git.head(folder.fsPath), before, "Opening review does not mutate Git");
   } finally {
     editor.dispose();
