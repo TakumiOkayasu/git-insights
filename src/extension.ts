@@ -17,6 +17,8 @@ import { createComparisonPresenter } from "./vscode-comparison";
 import type { BuiltinGitExtension, GitRepository } from "./vscode-git";
 import { GraphWorkbench } from "./graph-workbench";
 import { LineBlame } from "./line-blame";
+import { CommitOperations } from "./commit-operation";
+import { OperationEditor } from "./operation-editor";
 // English strings are translation keys, resolved by VS Code from l10n/bundle.l10n.ja.json.
 const labels = () => translateLabels((key) => vscode.l10n.t(key));
 const postMessage = (view: vscode.Webview, message: HostMessage) => view.postMessage(message);
@@ -466,8 +468,17 @@ export async function activate(context: vscode.ExtensionContext) {
     createComparisonPresenter(revisions),
   );
   const history = new History(context, git, avatars, comparisons);
-  const graph = new GraphWorkbench(git, api, comparisons, (view) =>
-    html(view, context.extensionUri, "graph"),
+  const operations = new OperationEditor(
+    new CommitOperations(git),
+    (view) => html(view, context.extensionUri, "operation"),
+    () => refresh(),
+  );
+  const graph = new GraphWorkbench(
+    git,
+    api,
+    comparisons,
+    (view) => html(view, context.extensionUri, "graph"),
+    (root, kind, sha) => operations.open(root, kind, sha),
   );
   const lenses = new Lenses(git);
   const lineBlame = new LineBlame(git, (email) => avatars.get(email));
@@ -478,6 +489,7 @@ export async function activate(context: vscode.ExtensionContext) {
     graph.schedule();
   };
   context.subscriptions.push(
+    operations,
     history,
     graph,
     vscode.window.registerWebviewViewProvider("gitInsights.graph", graph),

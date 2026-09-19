@@ -44,5 +44,16 @@
   "{0} deletions (-)": "{0} 行削除 (-)",
   "{0} binary files": "バイナリ {0} ファイル",
   "Change statistics unavailable.": "変更統計を取得できませんでした。",
-  "Open in {0}": "{0} で開く"
+  "Open in {0}": "{0} で開く",
+  "Change commit message": "コミットメッセージを変更",
+  "Operation completed.": "操作が完了しました。",
+  "Another commit operation is running.": "別のコミット操作が実行中です。",
+  "Finish or abort the current Git operation first.": "進行中のGit操作を完了または中止してください。",
+  "Commit or stash working changes before starting.": "作業中の変更をコミットまたはstashしてから開始してください。",
+  "Invalid commit operation.": "コミット操作が不正です。",
+  "Merge commits require the existing Git workflow.": "マージコミットは既存のGit操作を使用してください。",
+  "Reword across merges requires the existing Git workflow.": "マージを含む履歴のメッセージ変更は既存のGit操作を使用してください。",
+  "Reopen the operation from the graph before retrying.": "再実行する場合はグラフから操作を開き直してください。",
+  "Enter a non-empty commit message (up to 100000 characters).": "空でないコミットメッセージを入力してください (最大100000文字)。",
+  "HEAD or branch changed. Reopen the operation from the graph.": "HEADまたはブランチが変わりました。グラフから操作を開き直してください。"
 }

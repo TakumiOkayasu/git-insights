@@ -46,6 +46,8 @@ const translations = {
   ],
   noChanges: ["ファイルの変更はありません", "No file changes"],
   copy: ["SHAをコピー", "Copy SHA"],
+  cherryPick: ["Cherry-pickを確認", "Review cherry-pick"],
+  reword: ["メッセージ変更を確認", "Review message change"],
   branch: ["ブランチ / タグ", "Branch / Tag"],
 } as const;
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = "") {
@@ -408,6 +410,18 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
       );
       if (commit)
         inspector.append(element("p", commit.author), element("p", commit.body, "commit-body"));
+      if (commit && commit.sha === selected) {
+        const controls = element("div");
+        controls.append(
+          button(t("cherryPick"), "git-commit", () =>
+            post({ type: "operation", generation, sha: commit.sha, kind: "cherry-pick" }),
+          ),
+          button(t("reword"), "edit", () =>
+            post({ type: "operation", generation, sha: commit.sha, kind: "reword" }),
+          ),
+        );
+        inspector.append(controls);
+      }
       inspector.append(element("h3", `${t("changed")} (${value.changes.length})`));
       if (!value.changes.length) inspector.append(element("p", t("noChanges"), "muted"));
       for (const change of value.changes) {

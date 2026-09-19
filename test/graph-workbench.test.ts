@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("vscode", () => ({
   commands: { executeCommand: mocks.execute },
   env: { language: "en" },
+  l10n: { t: (value: string) => value },
   EventEmitter: class {
     event = vi.fn();
     fire = vi.fn();
@@ -27,7 +28,14 @@ it("focuses the panel and refreshes a recreated view with the selected repositor
   const api = {
     repositories: [{ rootUri: { fsPath: "/repo-a" } }, { rootUri: { fsPath: "/repo-b" } }],
   } as unknown as BuiltinGitApi;
-  const graph = new GraphWorkbench({} as Git, api, {} as ComparisonFactory, () => "graph HTML");
+  const openOperation = vi.fn().mockResolvedValue(undefined);
+  const graph = new GraphWorkbench(
+    {} as Git,
+    api,
+    {} as ComparisonFactory,
+    () => "graph HTML",
+    openOperation,
+  );
   const createView = () => {
     let receive: (value: unknown) => void = () => {};
     let visibility: () => void = () => {};
@@ -97,5 +105,21 @@ it("focuses the panel and refreshes a recreated view with the selected repositor
   second.view.visible = true;
   second.visibility();
   await vi.waitFor(() => expect(mocks.snapshot).toHaveBeenCalled());
+  const sha = "a".repeat(40);
+  mocks.snapshot.mockResolvedValue({ commits: [{ sha }], refs: [], head: sha });
+  await graph.refresh();
+  const last = second.view.webview.postMessage.mock.calls.at(-1)![0];
+  second.receive({ type: "operation", generation: last.generation - 1, sha, kind: "reword" });
+  second.receive({
+    type: "operation",
+    generation: last.generation,
+    sha: "b".repeat(40),
+    kind: "cherry-pick",
+  });
+  second.receive({ type: "operation", generation: last.generation, sha, kind: "reset" });
+  expect(openOperation).not.toHaveBeenCalled();
+  second.receive({ type: "operation", generation: last.generation, sha, kind: "reword" });
+  await vi.waitFor(() => expect(openOperation).toHaveBeenCalledWith("/repo-b", "reword", sha));
+  expect(openOperation).toHaveBeenCalledOnce();
   graph.dispose();
 });
