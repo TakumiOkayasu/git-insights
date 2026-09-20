@@ -28,6 +28,9 @@ try {
     },
   });
   delete process.env.ELECTRON_RUN_AS_NODE;
+  // Keep the profile path short enough for macOS IPC sockets.
+  // Electron can retain locks on Windows, so keep it outside the Git fixture.
+  const profile = await mkdtemp(path.join(tmpdir(), "gi-profile-"));
   await runTests({
     extensionDevelopmentPath: project,
     extensionTestsPath: path.join(project, "dist-test/host.cjs"),
@@ -40,9 +43,7 @@ try {
       "--disable-extensions",
       "--disable-telemetry",
       "--user-data-dir",
-      // Electron may briefly retain file locks after exiting on Windows.
-      // Keep its disposable profile outside the Git fixture being cleaned up.
-      path.join(project, ".vscode-test", `profile-${path.basename(fixture)}`),
+      profile,
     ],
     extensionTestsEnv: { ...process.env },
   });
