@@ -44,6 +44,13 @@ export class LineBlame implements vscode.Disposable {
       vscode.window.onDidChangeTextEditorSelection(() => this.schedule()),
       vscode.workspace.onDidChangeTextDocument(() => this.refresh()),
       vscode.workspace.onDidCloseTextDocument(() => this.refresh()),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration("git.blame.editorDecoration.enabled") ||
+          event.affectsConfiguration("git.enabled")
+        )
+          this.schedule();
+      }),
     ];
     this.schedule();
   }
@@ -65,8 +72,11 @@ export class LineBlame implements vscode.Disposable {
     this.current = undefined;
   }
   private enabled() {
+    const git = vscode.workspace.getConfiguration("git");
     return (
-      !this.disposed && vscode.workspace.getConfiguration("gitInsights").get("blame.enabled", true)
+      !this.disposed &&
+      vscode.workspace.getConfiguration("gitInsights").get("blame.enabled", true) &&
+      !(git.get("enabled", true) && git.get("blame.editorDecoration.enabled", false))
     );
   }
   private schedule() {

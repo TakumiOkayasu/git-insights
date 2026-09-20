@@ -23,6 +23,8 @@ VS Code 1.96以降とGitが必要です。VSIXからインストールしてく�
 | `gitInsights.history.limit`    | `100`   | ファイル・行履歴の上限 (10〜1000) |
 | `gitInsights.gravatar.enabled` | `false` | 著者アバターの取得                |
 
+VS Code標準Gitの行末Blameが有効な場合、重複を避けるためGit Insightsの行末表示と詳細ホバーは表示しません。Git Insights側を使う場合は `git.blame.editorDecoration.enabled` を `false` にしてください。設定変更は再起動なしで反映されます。
+
 AI機能とテレメトリはありません。Gravatar有効時のみメールアドレスのSHA-256ハッシュを送信します。信頼されていないワークスペースでは動作しません。
 
 ## 開発
