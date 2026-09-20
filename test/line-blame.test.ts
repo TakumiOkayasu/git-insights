@@ -4,6 +4,11 @@ import { LineBlame } from "../src/line-blame";
 
 const host = vi.hoisted(() => ({
   enabled: true,
+  builtinEnabled: false,
+  gitEnabled: true,
+  configurationChanged: undefined as
+    | ((event: { affectsConfiguration: (section: string) => boolean }) => void)
+    | undefined,
   setDecorations: vi.fn(),
   dispose: vi.fn(),
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -52,7 +57,18 @@ vi.mock("vscode", () => {
       onDidChangeTextEditorSelection: event,
     },
     workspace: {
-      getConfiguration: () => ({ get: () => host.enabled }),
+      getConfiguration: (section: string) => ({
+        get: (key: string) =>
+          section === "gitInsights"
+            ? host.enabled
+            : key === "enabled"
+              ? host.gitEnabled
+              : host.builtinEnabled,
+      }),
+      onDidChangeConfiguration: (callback: typeof host.configurationChanged) => {
+        host.configurationChanged = callback;
+        return event();
+      },
       onDidChangeTextDocument: event,
       onDidCloseTextDocument: event,
     },
@@ -96,6 +112,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   host.enabled = true;
+  host.builtinEnabled = false;
+  host.gitEnabled = true;
   git.blameContents.mockResolvedValue([{ sha, start: 1, count: 1 }]);
   git.details.mockResolvedValue([{ status: "M", path: "file.ts", added: "2", deleted: "1" }]);
   git.run.mockResolvedValue("git@gitlab.com:owner/repo.git");
@@ -135,6 +153,49 @@ it("clears the decoration and its hover when blame is disabled", async () => {
   host.enabled = false;
   blame.refresh();
   await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
+});
+
+it("defers to built-in blame without loading duplicate commit details", async () => {
+  host.builtinEnabled = true;
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
+  expect(git.blameContents).not.toHaveBeenCalled();
+});
+
+it("clears and restores its annotation when built-in blame is toggled", async () => {
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1]).toHaveLength(1);
+  host.builtinEnabled = true;
+  host.configurationChanged!({
+    affectsConfiguration: (section) => section === "git.blame.editorDecoration.enabled",
+  });
+  expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
+  host.builtinEnabled = false;
+  host.configurationChanged!({
+    affectsConfiguration: (section) => section === "git.blame.editorDecoration.enabled",
+  });
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1]).toHaveLength(1);
+});
+
+it("does not defer to a disabled built-in Git extension", async () => {
+  host.builtinEnabled = true;
+  host.gitEnabled = false;
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1]).toHaveLength(1);
+});
+
+it("does not restore pending details after built-in blame takes over", async () => {
+  let resolve!: (changes: []) => void;
+  git.details.mockReturnValueOnce(new Promise((done) => (resolve = done)));
+  await vi.advanceTimersByTimeAsync(200);
+  host.builtinEnabled = true;
+  host.configurationChanged!({
+    affectsConfiguration: (section) => section === "git.blame.editorDecoration.enabled",
+  });
+  resolve([]);
+  await vi.advanceTimersByTimeAsync(0);
   expect(host.setDecorations.mock.lastCall![1]).toEqual([]);
 });
 
