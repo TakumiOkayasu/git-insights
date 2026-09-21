@@ -18,6 +18,9 @@ try {
   git("commit", "-m", "Fixture");
   const sha = git("rev-parse", "HEAD").toString().trim();
   await writeFile(path.join(fixture, "git-rebase-todo"), `pick ${sha} Fixture\n`);
+  // A host test must exercise the current sources even when it is run on its own.
+  await build({ configFile: path.join(project, "vite.extension.config.ts") });
+  await build({ configFile: path.join(project, "vite.webview.config.ts") });
   await build({
     configFile: false,
     build: {

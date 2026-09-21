@@ -3,6 +3,8 @@ import type * as vscode from "vscode";
 import type { Git } from "../src/git";
 import type { ComparisonFactory } from "../src/git-comparison";
 import type { BuiltinGitApi } from "../src/vscode-git";
+import type { RepositorySnapshot } from "../src/repository";
+import { parseGraphMessage, type GraphMessage } from "../src/graph-protocol";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -23,8 +25,24 @@ vi.mock("../src/repository", () => ({
 }));
 import { GraphWorkbench } from "../src/graph-workbench";
 
+const emptySnapshot = {
+  commits: [],
+  refs: [],
+  head: null,
+  branch: "main",
+  changed: 0,
+  remotes: [],
+  truncated: false,
+} satisfies RepositorySnapshot;
+
+const checkedPostMessage = () =>
+  vi.fn(async (message: GraphMessage) => {
+    if (!parseGraphMessage(message)) throw new Error("GraphWorkbench posted an invalid message");
+    return true;
+  });
+
 it("focuses the panel and refreshes a recreated view with the selected repository", async () => {
-  mocks.snapshot.mockResolvedValue({ commits: [], refs: [], head: null });
+  mocks.snapshot.mockResolvedValue(emptySnapshot);
   const api = {
     repositories: [{ rootUri: { fsPath: "/repo-a" } }, { rootUri: { fsPath: "/repo-b" } }],
   } as unknown as BuiltinGitApi;
@@ -47,7 +65,7 @@ it("focuses the panel and refreshes a recreated view with the selected repositor
       show: vi.fn(),
       webview: {
         html: "",
-        postMessage: vi.fn().mockResolvedValue(true),
+        postMessage: checkedPostMessage(),
         onDidReceiveMessage: (fn: typeof receive) => {
           receive = fn;
           return listener;
@@ -106,9 +124,24 @@ it("focuses the panel and refreshes a recreated view with the selected repositor
   second.visibility();
   await vi.waitFor(() => expect(mocks.snapshot).toHaveBeenCalled());
   const sha = "a".repeat(40);
-  mocks.snapshot.mockResolvedValue({ commits: [{ sha }], refs: [], head: sha });
+  mocks.snapshot.mockResolvedValue({
+    ...emptySnapshot,
+    commits: [
+      {
+        sha,
+        parents: [],
+        author: "Test Author",
+        email: "test@example.invalid",
+        date: "2026-09-21T00:00:00Z",
+        subject: "Subject",
+        body: "",
+      },
+    ],
+    head: sha,
+  });
   await graph.refresh();
   const last = second.view.webview.postMessage.mock.calls.at(-1)![0];
+  if (last.type !== "graph") throw new Error("Expected a graph message");
   second.receive({ type: "operation", generation: last.generation - 1, sha, kind: "reword" });
   second.receive({
     type: "operation",
@@ -121,5 +154,27 @@ it("focuses the panel and refreshes a recreated view with the selected repositor
   second.receive({ type: "operation", generation: last.generation, sha, kind: "reword" });
   await vi.waitFor(() => expect(openOperation).toHaveBeenCalledWith("/repo-b", "reword", sha));
   expect(openOperation).toHaveBeenCalledOnce();
+  for (const [message] of [
+    ...first.view.webview.postMessage.mock.calls,
+    ...second.view.webview.postMessage.mock.calls,
+  ])
+    expect(parseGraphMessage(message)).toEqual(message);
   graph.dispose();
+});
+
+it("rejects graph messages when a snapshot field is missing", () => {
+  expect(
+    parseGraphMessage({
+      type: "graph",
+      repositories: [],
+      repository: "/repo",
+      generation: 1,
+      locale: "en",
+      focus: "",
+      state: {
+        status: "ready",
+        snapshot: { ...emptySnapshot, truncated: undefined },
+      },
+    }),
+  ).toBeUndefined();
 });
