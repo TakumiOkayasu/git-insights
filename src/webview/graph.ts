@@ -76,6 +76,19 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
   let table: HTMLElement;
   let status: HTMLElement;
   let comparing = false;
+  let refreshing = false;
+  let selectionRequest: Extract<GraphRequest, { type: "inspect" | "compare" }> | undefined;
+  let displayedSelection: Extract<GraphMessage, { type: "selection" }> | undefined;
+  function markRefreshing(value: boolean) {
+    refreshing = value;
+    app.setAttribute("aria-busy", String(value));
+    app
+      .querySelectorAll<HTMLButtonElement | HTMLSelectElement>("button, select")
+      .forEach((control) => {
+        // Refresh remains available if the previous request failed.
+        control.disabled = value && control.getAttribute("aria-label") !== t("refresh");
+      });
+  }
   const button = (label: string, glyph: string, action: () => void, className = "") => {
     const b = element("button", "", className);
     b.type = "button";
@@ -96,6 +109,8 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     return b;
   }
   function choose(sha: string) {
+    if (refreshing) return;
+    displayedSelection = undefined;
     inspector.hidden = false;
     selected = sha;
     table.querySelectorAll<HTMLElement>("[data-sha]").forEach((row) => {
@@ -104,7 +119,8 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
       row.setAttribute("aria-selected", String(active));
     });
     inspector.replaceChildren(element("h2", t("inspect")), element("p", t("loading"), "muted"));
-    post({ type: "inspect", generation, sha });
+    selectionRequest = { type: "inspect", generation, sha };
+    post(selectionRequest);
   }
   function draw(canvas: HTMLCanvasElement, row: GraphRow, width: number) {
     const ratio = window.devicePixelRatio || 1;
@@ -260,22 +276,64 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
         if (!base.value || !target.value) return;
         inspector.hidden = false;
         inspector.replaceChildren(element("h2", t("compare")), element("p", t("loading"), "muted"));
-        post({
+        selected = "";
+        displayedSelection = undefined;
+        selectionRequest = {
           type: "compare",
           generation,
           base: base.value,
           target: target.value,
           commonBase: common.checked,
-        });
+        };
+        post(selectionRequest);
       }),
     );
     return box;
   }
-  function render(message: Extract<GraphMessage, { type: "graph" }>) {
+  function render(message: Extract<GraphMessage, { type: "graph" }>, force = false) {
+    if (message.generation < generation) return;
+    const sameContext =
+      current?.repository === message.repository &&
+      current?.focus === message.focus &&
+      current?.locale === message.locale &&
+      JSON.stringify(current?.repositories) === JSON.stringify(message.repositories);
+    const unchanged =
+      sameContext &&
+      snapshot &&
+      message.state.status === "ready" &&
+      JSON.stringify(snapshot) === JSON.stringify(message.state.snapshot);
+    if (
+      !force &&
+      sameContext &&
+      snapshot &&
+      (message.state.status === "loading" || message.state.status === "error" || unchanged)
+    ) {
+      current = message;
+      generation = message.generation;
+      markRefreshing(message.state.status !== "ready");
+      const notice = app.querySelector<HTMLElement>("#graph-error");
+      if (notice)
+        notice.textContent = message.state.status === "error" ? message.state.message : "";
+      if (unchanged && selectionRequest && generation !== displayedSelection?.generation) {
+        // Revalidate the selection token without removing its visible contents.
+        inspector.querySelectorAll<HTMLButtonElement>("button").forEach((control) => {
+          control.disabled = true;
+        });
+        selectionRequest = { ...selectionRequest, generation };
+        post(selectionRequest);
+      }
+      return;
+    }
+    if (!sameContext) {
+      selected = "";
+      selectionRequest = undefined;
+    }
+    displayedSelection = undefined;
+    selectionRequest = undefined;
     if (current?.repository !== message.repository || current?.focus !== message.focus) {
       scrollTop = 0;
       scrollLeft = 0;
-    } else if (current?.state.status === "ready") {
+    } else if (snapshot) {
       scrollTop = table.scrollTop;
       scrollLeft = table.scrollLeft;
     }
@@ -287,6 +345,8 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     snapshot = message.state.status === "ready" ? message.state.snapshot : undefined;
     app.replaceChildren();
     app.className = "workbench";
+    refreshing = false;
+    app.setAttribute("aria-busy", "false");
     const top = element("header", "", "graph-toolbar");
     const repos = element("select");
     repos.setAttribute("aria-label", language === 0 ? "リポジトリ" : "Repository");
@@ -307,7 +367,7 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     );
     const comparison = button(t("compare"), "git-compare", () => {
       comparing = !comparing;
-      if (current) render(current);
+      if (current) render(current, true);
     });
     top.append(comparison);
     const search = element("input");
@@ -318,6 +378,7 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     search.oninput = () => {
       query = search.value;
       renderRows();
+      if (refreshing) markRefreshing(true);
     };
     top.append(search);
     app.append(top);
@@ -408,7 +469,17 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     else if (message.type === "graphError") {
       const notice = document.getElementById("graph-error");
       if (notice) notice.textContent = message.message;
-    } else if (message.generation === generation) {
+    } else if (message.generation === generation && !refreshing) {
+      const unchanged =
+        displayedSelection &&
+        JSON.stringify(displayedSelection.value) === JSON.stringify(message.value);
+      displayedSelection = message;
+      if (unchanged) {
+        inspector.querySelectorAll<HTMLButtonElement>("button").forEach((control) => {
+          control.disabled = false;
+        });
+        return;
+      }
       inspector.hidden = false;
       const value = message.value;
       const commit = snapshot?.commits.find((c) => c.sha === value.after);
@@ -440,7 +511,13 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
         const b = button(
           change.path,
           "files",
-          () => post({ type: "diff", generation, selection: message.selection, path: change.path }),
+          () =>
+            post({
+              type: "diff",
+              generation,
+              selection: displayedSelection?.selection ?? message.selection,
+              path: change.path,
+            }),
           "changed-file",
         );
         b.title = change.oldPath ? `${change.oldPath} → ${change.path}` : change.path;

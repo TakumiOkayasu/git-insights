@@ -73,9 +73,40 @@ function group(date: string) {
 }
 const details = new Map<string, { element: HTMLElement; commit: Commit; loaded: boolean }>();
 const avatars = new Map<string, HTMLElement>();
+let renderedContext = "";
+let renderedHistory = "";
+let historyLoading = false;
 function renderHistory(state: HistoryMessage) {
   const { context, result } = state;
+  if (state.generation < generation) return;
   generation = state.generation;
+  labels = state.labels;
+  locale = state.locale;
+  const contextKey = JSON.stringify([context, state.pinned, state.locale, state.labels]);
+  const historyKey = result.status === "ready" ? JSON.stringify(result) : "";
+  const keepTimeline =
+    renderedHistory !== "" &&
+    renderedContext === contextKey &&
+    (result.status === "loading" || (result.status === "ready" && renderedHistory === historyKey));
+  if (keepTimeline) {
+    const wasLoading = historyLoading;
+    historyLoading = result.status === "loading";
+    app.querySelector<HTMLElement>("p.status")!.textContent = historyLoading
+      ? t("Loading…")
+      : result.status === "ready" && !result.commits.length
+        ? t("No history found.")
+        : "";
+    app.querySelectorAll<HTMLButtonElement>(".timeline button").forEach((b) => {
+      b.disabled = historyLoading;
+    });
+    if (wasLoading && !historyLoading)
+      for (const [sha, detail] of details)
+        if (!detail.element.hidden && !detail.loaded) send({ type: "details", sha });
+    return;
+  }
+  historyLoading = result.status === "loading";
+  renderedContext = result.status === "ready" ? contextKey : "";
+  renderedHistory = historyKey;
   details.clear();
   avatars.clear();
   app.replaceChildren();
@@ -283,10 +314,6 @@ function renderTodo(state: TodoMessage) {
 window.addEventListener("message", (event) => {
   const m = parseHostMessage(event.data);
   if (!m) return;
-  if ("labels" in m) {
-    labels = m.labels;
-    locale = m.locale;
-  }
   switch (m.type) {
     case "history":
       renderHistory(m);
@@ -310,6 +337,8 @@ window.addEventListener("message", (event) => {
       }
       break;
     case "todo":
+      labels = m.labels;
+      locale = m.locale;
       renderTodo(m);
       break;
     case "error": {

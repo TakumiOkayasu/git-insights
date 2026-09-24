@@ -10,7 +10,6 @@ export interface Commit {
   date: string;
   subject: string;
   body: string;
-  avatar?: string;
 }
 export interface Change {
   status: string;
