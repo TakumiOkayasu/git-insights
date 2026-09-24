@@ -70,6 +70,8 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
   let focus = "";
   let query = "";
   let current: Extract<GraphMessage, { type: "graph" }> | undefined;
+  let scrollTop = 0;
+  let scrollLeft = 0;
   let inspector: HTMLElement;
   let table: HTMLElement;
   let status: HTMLElement;
@@ -270,6 +272,14 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     return box;
   }
   function render(message: Extract<GraphMessage, { type: "graph" }>) {
+    if (current?.repository !== message.repository || current?.focus !== message.focus) {
+      scrollTop = 0;
+      scrollLeft = 0;
+    } else if (current?.state.status === "ready") {
+      scrollTop = table.scrollTop;
+      scrollLeft = table.scrollLeft;
+    }
+    // Keep the last ready position across intermediate loading/error messages.
     current = message;
     generation = message.generation;
     language = message.locale.startsWith("ja") ? 0 : 1;
@@ -381,6 +391,8 @@ export function mountGraph(app: HTMLElement, post: (message: GraphRequest) => vo
     if (snapshot) {
       renderRows();
       if (selected && snapshot.commits.some((c) => c.sha === selected)) choose(selected);
+      table.scrollTop = scrollTop;
+      table.scrollLeft = scrollLeft;
     } else if (message.state.status === "error") {
       notice.textContent = message.state.message;
       table.append(button(t("all"), "repo", () => post({ type: "focus", ref: "" })));
