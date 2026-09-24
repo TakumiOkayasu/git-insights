@@ -67,12 +67,18 @@ export class GraphWorkbench
   resolveWebviewView(view: vscode.WebviewView) {
     this.view = view;
     const listener = view.webview.onDidReceiveMessage((value: unknown) => {
-      void this.message(value).catch((e) =>
-        this.post({
-          type: "graphError",
-          message: vscode.l10n.t(e instanceof Error ? e.message : String(e)),
-        }),
-      );
+      const request = this.message(value);
+      const generation = this.generation;
+      const selectionId = this.selectionId;
+      void request.catch((e) => {
+        if (
+          this.view !== view ||
+          generation !== this.generation ||
+          selectionId !== this.selectionId
+        )
+          return;
+        void this.postError(e);
+      });
     });
     const visibility = view.onDidChangeVisibility(() => {
       if (view.visible) void this.refresh();
@@ -98,6 +104,12 @@ export class GraphWorkbench
   }
   private post(message: GraphMessage) {
     return this.view?.webview.postMessage(message);
+  }
+  private postError(error: unknown) {
+    return this.post({
+      type: "graphError",
+      message: vscode.l10n.t(error instanceof Error ? error.message : String(error)),
+    });
   }
   async refresh() {
     if (!this.view?.visible) return;
@@ -168,6 +180,11 @@ export class GraphWorkbench
       return this.refresh();
     }
     if (m.type === "fetch" || m.type === "checkout") {
+      const view = this.view;
+      const generation = this.generation;
+      const selectionId = this.selectionId;
+      let failure: unknown;
+      let failed = false;
       this.busy = true;
       try {
         if (m.type === "fetch")
@@ -188,9 +205,29 @@ export class GraphWorkbench
             this.focus = "";
           }
         }
+      } catch (error) {
+        failure = error;
+        failed = true;
       } finally {
+        const current =
+          this.view === view &&
+          this.root === root &&
+          this.generation === generation &&
+          this.selectionId === selectionId;
         this.busy = false;
-        await this.refresh();
+        const refreshed = this.refresh();
+        const refreshedGeneration = this.generation;
+        const refreshedSelectionId = this.selectionId;
+        await refreshed;
+        if (
+          failed &&
+          current &&
+          this.view === view &&
+          this.root === root &&
+          this.generation === refreshedGeneration &&
+          this.selectionId === refreshedSelectionId
+        )
+          void this.postError(failure);
       }
       return;
     }
