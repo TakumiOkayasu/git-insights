@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import assert from "node:assert/strict";
 import { Git } from "../src/git";
+import { remoteCommitUrl } from "../src/vscode-remote";
 import { blameHover, blameCommands } from "../src/blame-hover";
 import { CommitOperations } from "../src/commit-operation";
 import { OperationEditor } from "../src/operation-editor";
@@ -40,6 +41,46 @@ export async function run() {
   });
   console.log("Host blame", await git.blame(folder.fsPath, document.uri.fsPath));
   const commit = await git.commit(folder.fsPath, await git.head(folder.fsPath));
+  const settings = vscode.workspace.getConfiguration("gitInsights", folder);
+  assert.equal(settings.get("gitlab.projectUrl"), "", "GitLab設定の初期値は空欄");
+  const remote = "ssh://git@work-gitlab:2222/group/subgroup/project.git";
+  const projectUrl = "https://gitlab.example.invalid:8443/gitlab/group/subgroup/project";
+  try {
+    await settings.update(
+      "gitlab.projectUrl",
+      projectUrl,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    assert.equal(
+      remoteCommitUrl(document.uri, remote, commit.sha),
+      `${projectUrl}/-/commit/${commit.sha}`,
+      "実際のフォルダー設定からGitLabリンクを生成する",
+    );
+    await settings.update(
+      "gitlab.projectUrl",
+      "https://user:secret@gitlab.example.invalid/group/project",
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    assert.equal(
+      remoteCommitUrl(document.uri, remote, commit.sha),
+      undefined,
+      "認証情報を含む設定を拒否する",
+    );
+    await settings.update("gitlab.projectUrl", "", vscode.ConfigurationTarget.WorkspaceFolder);
+    assert.equal(
+      remoteCommitUrl(document.uri, remote, commit.sha),
+      undefined,
+      "設定の削除を再起動なしで反映する",
+    );
+  } finally {
+    await settings.update(
+      "gitlab.projectUrl",
+      undefined,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    // このテストが作った設定ファイルを残すと、後続のGit操作テストが未追跡変更を検出する。
+    await vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, ".vscode", "settings.json"));
+  }
   const richHover = blameHover(
     commit,
     {

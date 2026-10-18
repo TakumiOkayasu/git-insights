@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { createHash, randomBytes } from "node:crypto";
-import { Git, type Commit, type Change, type Blame, remoteCommitUrl } from "./git";
+import { Git, type Commit, type Change, type Blame } from "./git";
+import { remoteCommitUrl } from "./vscode-remote";
 import { parseTodo, serializeTodo } from "./rebase";
 
 import { translateLabels } from "./labels";
@@ -89,6 +90,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
   private commits = new Map<string, Commit>();
   private changes = new Map<string, Change[]>();
   private root = "";
+  private file = "";
   private listeners: vscode.Disposable[] = [];
   constructor(
     private context: vscode.ExtensionContext,
@@ -215,6 +217,7 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
       );
       if (generation !== this.generation) return;
       this.root = root;
+      this.file = target.file;
       commits.forEach((c) => this.commits.set(c.sha, c));
       post({ status: "ready", commits, truncated: commits.length === limit });
       // Limit simultaneous outbound requests, and never block history on avatar loading.
@@ -260,8 +263,10 @@ class History implements vscode.WebviewViewProvider, vscode.Disposable {
     const generation = this.generation;
     if (m.type === "copy") return vscode.env.clipboard.writeText(commit.sha);
     if (m.type === "remote") {
+      const resource = vscode.Uri.file(this.file);
       const remote = (await this.git.run(root, ["remote", "get-url", "origin"])).trim();
-      const url = remoteCommitUrl(remote, commit.sha);
+      if (generation !== this.generation) return;
+      const url = remoteCommitUrl(resource, remote, commit.sha);
       if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
       else
         void vscode.window.showInformationMessage(vscode.l10n.t("This remote is not supported."));

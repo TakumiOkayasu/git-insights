@@ -12,5 +12,7 @@
   "repositories": "リポジトリ",
   "repositoriesWelcome": "Gitリポジトリを含むフォルダーを開いてください。\\n[コミットグラフを開く](command:gitInsights.openGraph)",
   "blame": "選択中の行のBlame注釈とコミット詳細のホバーを表示します。",
-  "graphView": "リポジトリグラフ"
+  "graphView": "リポジトリグラフ",
+  "gitlabProjectUrl": "セルフホストGitLabのHTTPSプロジェクトURL。名前空間と必要なWebポート・サブパスを含め、ワークスペースのフォルダーごとに設定してください。未知のoriginホストに使用し、GitHub.com・GitLab.com・Bitbucket.orgは従来の自動リンクを優先します。空欄で無効。認証情報・クエリ・フラグメントは指定できません。",
+  "gitlabProjectUrlError": "名前空間とプロジェクトを含むHTTPS URLを、認証情報・クエリ・フラグメントなしで指定するか、空欄にしてください。"
 }
