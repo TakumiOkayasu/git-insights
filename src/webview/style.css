@@ -162,12 +162,12 @@ time {
   border-radius: 50%;
   align-items: center;
   justify-content: center;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
+  color: var(--vscode-descriptionForeground);
   overflow: hidden;
   flex-shrink: 0;
 }
-.avatar img {
+.avatar img,
+.avatar svg {
   width: 100%;
   height: 100%;
 }

@@ -54,6 +54,141 @@ async function mount() {
   };
 }
 
+function mockAvatarImages() {
+  const images: HTMLImageElement[] = [];
+  const create = document.createElement.bind(document);
+  vi.spyOn(document, "createElement").mockImplementation((...args) => {
+    const element = create(...args);
+    if (element instanceof HTMLImageElement) images.push(element);
+    return element;
+  });
+  const createUrl = vi
+    .spyOn(URL, "createObjectURL")
+    .mockImplementation(() => `blob:avatar-${images.length}`);
+  const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  return { images, createUrl, revokeUrl };
+}
+
+const avatarMessage = {
+  type: "avatar",
+  generation: 1,
+  sha,
+  avatar: "data:image/png;base64,AQID",
+};
+
+it("アバター未設定では著者名に依存しない装飾用のSVGを表示する", async () => {
+  const { app, send } = await mount();
+  const { createUrl } = mockAvatarImages();
+  send({
+    ...ready,
+    result: {
+      ...ready.result,
+      commits: [commit, { ...commit, sha: "b".repeat(40), author: "" }],
+    },
+  });
+  const avatars = app.querySelectorAll(".avatar");
+  expect(avatars).toHaveLength(2);
+  for (const avatar of avatars) {
+    expect(avatar.getAttribute("aria-hidden")).toBe("true");
+    expect(avatar.textContent).toBe("");
+    expect(avatar.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(avatar.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+    expect(avatar.querySelector("svg")?.getAttribute("focusable")).toBe("false");
+    expect(avatar.querySelector("img")).toBeNull();
+  }
+  expect(avatars[0].innerHTML).toBe(avatars[1].innerHTML);
+  expect(app.querySelector(".meta")!.textContent).toContain(commit.author);
+  expect(createUrl).not.toHaveBeenCalled();
+});
+
+it("有効な画像は読み込み成功後だけSVGと置き換える", async () => {
+  const { app, send } = await mount();
+  const { images, createUrl, revokeUrl } = mockAvatarImages();
+  send(ready);
+  send(avatarMessage);
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  expect(app.querySelector(".avatar img")).toBeNull();
+  expect(createUrl).toHaveBeenCalledOnce();
+  expect(createUrl.mock.calls[0][0]).toBeInstanceOf(Blob);
+  expect((createUrl.mock.calls[0][0] as Blob).type).toBe("image/png");
+  images[0].dispatchEvent(new Event("load"));
+  expect(app.querySelector(".avatar img")).toBe(images[0]);
+  expect(images[0].alt).toBe("");
+  expect(app.querySelector(".avatar svg")).toBeNull();
+  expect(revokeUrl).toHaveBeenCalledExactlyOnceWith("blob:avatar-1");
+});
+
+it("画像の読み込みが失敗してもSVGを維持しBlob URLを解放する", async () => {
+  const { app, send } = await mount();
+  const { images, revokeUrl } = mockAvatarImages();
+  send(ready);
+  send(avatarMessage);
+  images[0].dispatchEvent(new Event("error"));
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  expect(app.querySelector(".avatar img")).toBeNull();
+  expect(revokeUrl).toHaveBeenCalledExactlyOnceWith("blob:avatar-1");
+});
+
+it.each([
+  "",
+  "https://example.invalid/tracker.png",
+  "data:image/svg+xml;base64,AQID",
+  "data:image/png;base64,%%%%",
+])("不正なアバターを取得せずSVGを維持する: %s", async (avatar) => {
+  const { app, send } = await mount();
+  const { createUrl } = mockAvatarImages();
+  send(ready);
+  send({ ...avatarMessage, avatar });
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  expect(createUrl).not.toHaveBeenCalled();
+});
+
+it("画像の再取得では古い読み込みを破棄する", async () => {
+  const { app, send } = await mount();
+  const { images, revokeUrl } = mockAvatarImages();
+  send(ready);
+  send(avatarMessage);
+  const staleLoad = images[0].onload!;
+  send(avatarMessage);
+  expect(revokeUrl).toHaveBeenCalledWith("blob:avatar-1");
+  staleLoad.call(images[0], new Event("load"));
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  images[1].dispatchEvent(new Event("load"));
+  expect(app.querySelector(".avatar img")).toBe(images[1]);
+  expect(revokeUrl).toHaveBeenCalledTimes(2);
+});
+
+it("更新でアバターを未設定に戻し古い世代の画像を無視する", async () => {
+  const { app, send } = await mount();
+  const { images, createUrl } = mockAvatarImages();
+  send(ready);
+  send(avatarMessage);
+  images[0].dispatchEvent(new Event("load"));
+  const entry = app.querySelector("article");
+  send({ ...ready, generation: 2, result: { status: "loading" } });
+  send({ ...ready, generation: 2 });
+  expect(app.querySelector("article")).toBe(entry);
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  send(avatarMessage);
+  expect(createUrl).toHaveBeenCalledOnce();
+  send({ ...avatarMessage, generation: 2 });
+  images[1].dispatchEvent(new Event("load"));
+  expect(app.querySelector(".avatar img")).toBe(images[1]);
+});
+
+it("表示先の変更時に読み込み中の画像を解放し新しいSVGへ反映しない", async () => {
+  const { app, send } = await mount();
+  const { images, revokeUrl } = mockAvatarImages();
+  send(ready);
+  send(avatarMessage);
+  const staleLoad = images[0].onload!;
+  send({ ...ready, generation: 2, context: { mode: "file", file: "/repo/two.ts" } });
+  staleLoad.call(images[0], new Event("load"));
+  expect(app.querySelector(".avatar svg")).not.toBeNull();
+  expect(app.querySelector(".avatar img")).toBeNull();
+  expect(revokeUrl).toHaveBeenCalledExactlyOnceWith("blob:avatar-1");
+});
+
 it("retains expanded details and row identity through an unchanged refresh", async () => {
   const { app, post, send } = await mount();
   send(ready);

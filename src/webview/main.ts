@@ -14,7 +14,7 @@ import {
   type WebviewRequest,
 } from "../protocol";
 import { actions, type TodoRow } from "../rebase";
-import { decodeAvatar } from "../avatar";
+import { createAvatar } from "./avatar";
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
@@ -72,13 +72,14 @@ function group(date: string) {
   return now.getTime() - value.getTime() < 30 * 86400000 ? "Over a week ago" : "Over a month ago";
 }
 const details = new Map<string, { element: HTMLElement; commit: Commit; loaded: boolean }>();
-const avatars = new Map<string, HTMLElement>();
+const avatars = new Map<string, ReturnType<typeof createAvatar>>();
 let renderedContext = "";
 let renderedHistory = "";
 let historyLoading = false;
 function renderHistory(state: HistoryMessage) {
   const { context, result } = state;
   if (state.generation < generation) return;
+  if (state.generation !== generation) for (const avatar of avatars.values()) avatar.reset();
   generation = state.generation;
   labels = state.labels;
   locale = state.locale;
@@ -108,6 +109,7 @@ function renderHistory(state: HistoryMessage) {
   renderedContext = result.status === "ready" ? contextKey : "";
   renderedHistory = historyKey;
   details.clear();
+  for (const avatar of avatars.values()) avatar.reset();
   avatars.clear();
   app.replaceChildren();
   const header = el("header");
@@ -177,7 +179,7 @@ function renderHistory(state: HistoryMessage) {
     time.title = new Date(commit.date).toLocaleString(locale);
     row.append(toggle, time);
     const meta = el("div", "", "meta");
-    const avatar = el("span", commit.author.slice(0, 1).toUpperCase(), "avatar");
+    const avatar = createAvatar();
     avatars.set(commit.sha, avatar);
     const hash = button(
       commit.sha.slice(0, 8),
@@ -186,7 +188,7 @@ function renderHistory(state: HistoryMessage) {
     );
     hash.className = "hash";
     meta.append(
-      avatar,
+      avatar.element,
       el("span", commit.author),
       hash,
       button("↗", () => send({ type: "remote", sha: commit.sha }), t("Open on remote")),
@@ -322,19 +324,7 @@ window.addEventListener("message", (event) => {
       if (m.generation === generation) renderDetails(m.sha, m.changes);
       break;
     case "avatar":
-      {
-        if (m.generation !== generation) break;
-        const avatar = avatars.get(m.sha);
-        const decoded = decodeAvatar(m.avatar);
-        if (avatar && decoded) {
-          const img = el("img");
-          const url = URL.createObjectURL(new Blob([decoded.bytes], { type: decoded.mime }));
-          img.onload = img.onerror = () => URL.revokeObjectURL(url);
-          img.src = url;
-          img.alt = "";
-          avatar.replaceChildren(img);
-        }
-      }
+      if (m.generation === generation) avatars.get(m.sha)?.showImage(m.avatar);
       break;
     case "todo":
       labels = m.labels;
