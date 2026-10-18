@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import assert from "node:assert/strict";
 import { Git } from "../src/git";
 import { blameHover, blameCommands } from "../src/blame-hover";
+import { defaultAvatarUri } from "../src/default-avatar";
 import { CommitOperations } from "../src/commit-operation";
 import { OperationEditor } from "../src/operation-editor";
 export async function run() {
@@ -79,7 +80,11 @@ export async function run() {
     { changes: [], avatar: "https://example.invalid/tracker" },
     1,
   );
-  assert.ok(!unsafeAvatar.value.includes("<img"), "Only validated raster data is embedded");
+  assert.ok(unsafeAvatar.value.includes(defaultAvatarUri), "不正な画像は同梱SVGに置き換える");
+  assert.ok(!unsafeAvatar.value.includes("https://example.invalid/tracker"));
+  const defaultAvatar = blameHover(commit, {}, 1);
+  assert.ok(defaultAvatar.value.includes(defaultAvatarUri), "アバター未設定でも同梱SVGを表示する");
+  assert.ok(defaultAvatar.value.includes('width="20" height="20" alt=""'));
   const uncommitted = blameHover(undefined, {}, 1);
   assert.ok(!uncommitted.value.includes("copySha"));
   assert.ok(!uncommitted.value.includes("openRemote"));

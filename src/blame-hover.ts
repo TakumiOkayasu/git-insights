@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { Change, Commit } from "./git";
 import { decodeAvatar } from "./avatar";
+import { defaultAvatarUri } from "./default-avatar";
 
 export const blameCommands = {
   copy: "gitInsights.blame.copySha",
@@ -51,8 +52,8 @@ export function blameHover(
     link("gear", vscode.l10n.t("Settings"), blameCommands.settings);
     return markdown;
   }
-  if (details.avatar && decodeAvatar(details.avatar))
-    markdown.appendMarkdown(`<img src="${details.avatar}" width="20" height="20" /> `);
+  const avatar = decodeAvatar(details.avatar) ? details.avatar : defaultAvatarUri;
+  markdown.appendMarkdown(`<img src="${avatar}" width="20" height="20" alt="" /> `);
   // Only our layout is Markdown; repository-controlled text is always escaped.
   markdown.appendMarkdown("**");
   markdown.appendText(commit.author);
