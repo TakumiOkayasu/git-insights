@@ -35,8 +35,9 @@ it.each([undefined, "", "https://example.invalid/tracker", "data:image/svg+xml;b
     const hover = blameHover(commit, { avatar }, 1);
     expect(hover.value).toContain(`<img src="${defaultAvatarUri}" width="20" height="20" alt=""`);
     expect(hover.value).toContain(commit.author);
-    expect(hover.value).not.toContain("https://example.invalid/tracker");
-    expect(hover.value).not.toContain("data:image/svg+xml;base64,AQID");
+    expect(
+      Array.from(hover.value.matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g), (match) => match[1]),
+    ).toEqual([defaultAvatarUri]);
   },
 );
 

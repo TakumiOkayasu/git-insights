@@ -80,8 +80,11 @@ export async function run() {
     { changes: [], avatar: "https://example.invalid/tracker" },
     1,
   );
-  assert.ok(unsafeAvatar.value.includes(defaultAvatarUri), "不正な画像は同梱SVGに置き換える");
-  assert.ok(!unsafeAvatar.value.includes("https://example.invalid/tracker"));
+  assert.deepEqual(
+    Array.from(unsafeAvatar.value.matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g), (match) => match[1]),
+    [defaultAvatarUri],
+    "不正な画像は同梱SVGに置き換える",
+  );
   const defaultAvatar = blameHover(commit, {}, 1);
   assert.ok(defaultAvatar.value.includes(defaultAvatarUri), "アバター未設定でも同梱SVGを表示する");
   assert.ok(defaultAvatar.value.includes('width="20" height="20" alt=""'));
