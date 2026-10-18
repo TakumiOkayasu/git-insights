@@ -4,6 +4,8 @@ import { LineBlame } from "../src/line-blame";
 
 const host = vi.hoisted(() => ({
   enabled: true,
+  projectUrl: "",
+  configurationScopes: [] as unknown[],
   builtinEnabled: false,
   gitEnabled: true,
   configurationChanged: undefined as
@@ -48,7 +50,7 @@ vi.mock("vscode", () => {
       },
       executeCommand: vi.fn(),
     },
-    Uri: { parse: (value: string) => value },
+    Uri: { parse: (value: string) => value, file: (fsPath: string) => ({ fsPath }) },
     window: {
       activeTextEditor: editor,
       visibleTextEditors: [editor],
@@ -57,14 +59,19 @@ vi.mock("vscode", () => {
       onDidChangeTextEditorSelection: event,
     },
     workspace: {
-      getConfiguration: (section: string) => ({
-        get: (key: string) =>
-          section === "gitInsights"
-            ? host.enabled
-            : key === "enabled"
-              ? host.gitEnabled
-              : host.builtinEnabled,
-      }),
+      getConfiguration: (section: string, scope?: unknown) => {
+        host.configurationScopes.push(scope);
+        return {
+          get: (key: string) =>
+            section === "gitInsights"
+              ? key === "gitlab.projectUrl"
+                ? host.projectUrl
+                : host.enabled
+              : key === "enabled"
+                ? host.gitEnabled
+                : host.builtinEnabled,
+        };
+      },
       onDidChangeConfiguration: (callback: typeof host.configurationChanged) => {
         host.configurationChanged = callback;
         return event();
@@ -112,6 +119,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   host.enabled = true;
+  host.projectUrl = "";
+  host.configurationScopes = [];
   host.builtinEnabled = false;
   host.gitEnabled = true;
   git.blameContents.mockResolvedValue([{ sha, start: 1, count: 1 }]);
@@ -264,4 +273,33 @@ it("reuses immutable statistics for the same commit", async () => {
   blame.refresh();
   await vi.advanceTimersByTimeAsync(200);
   expect(git.details).toHaveBeenCalledTimes(1);
+});
+
+it("フォルダー設定のGitLabリンクを開き、設定変更後は古いリンクを無効化する", async () => {
+  git.run.mockResolvedValue("git@work-gitlab:group/project.git");
+  host.projectUrl = "https://gitlab.example.invalid:8443/base/group/project";
+  await vi.advanceTimersByTimeAsync(200);
+  const generation = () => {
+    const markdown = host.setDecorations.mock.lastCall![1][0].hoverMessage.value;
+    return JSON.parse(
+      decodeURIComponent(/command:gitInsights\.blame\.openRemote\?([^)]*)/.exec(markdown)![1]),
+    )[0];
+  };
+  const previous = generation();
+  await host.commands.get("gitInsights.blame.openRemote")!(previous);
+  expect(host.open).toHaveBeenLastCalledWith(`${host.projectUrl}/-/commit/${sha}`);
+  expect(host.configurationScopes).toContainEqual(
+    expect.objectContaining({ fsPath: "/repo/file.ts" }),
+  );
+  host.projectUrl = "https://gitlab.example.invalid/other/project";
+  blame.refresh();
+  await host.commands.get("gitInsights.blame.openRemote")!(previous);
+  expect(host.open).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(200);
+  await host.commands.get("gitInsights.blame.openRemote")!(generation());
+  expect(host.open).toHaveBeenLastCalledWith(`${host.projectUrl}/-/commit/${sha}`);
+  host.projectUrl = "";
+  blame.refresh();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(host.setDecorations.mock.lastCall![1][0].hoverMessage.value).not.toContain("openRemote");
 });

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { type Git, type Blame, type Commit, type Change, remoteCommitUrl } from "./git";
+import { type Git, type Blame, type Commit, type Change } from "./git";
+import { remoteCommitUrl } from "./vscode-remote";
 import { blameHover, blameCommands, type BlameDetails } from "./blame-hover";
 
 type Attribution = { kind: "committed"; root: string; commit: Commit } | { kind: "uncommitted" };
@@ -124,7 +125,7 @@ export class LineBlame implements vscode.Disposable {
     }
     return { kind: "committed", root, commit: await commit };
   }
-  private async details(root: string, commit: Commit): Promise<BlameDetails> {
+  private async details(root: string, commit: Commit, resource: vscode.Uri): Promise<BlameDetails> {
     const key = `${root}:${commit.sha}`;
     let changes = this.changes.get(key);
     if (!changes) {
@@ -151,7 +152,7 @@ export class LineBlame implements vscode.Disposable {
       statisticsFailed: stats.status === "rejected",
       remoteUrl:
         origin.status === "fulfilled"
-          ? remoteCommitUrl(origin.value.trim(), commit.sha)
+          ? remoteCommitUrl(resource, origin.value.trim(), commit.sha)
           : undefined,
       avatar: avatar.status === "fulfilled" ? avatar.value : undefined,
     };
@@ -192,7 +193,11 @@ export class LineBlame implements vscode.Disposable {
       };
       show();
       if (attribution.kind === "committed") {
-        const details = await this.details(attribution.root, attribution.commit);
+        const details = await this.details(
+          attribution.root,
+          attribution.commit,
+          editor.document.uri,
+        );
         if (current()) show(details);
       }
     } catch {

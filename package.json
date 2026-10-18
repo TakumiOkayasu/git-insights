@@ -168,6 +168,14 @@
           "default": true,
           "description": "%blame%",
           "type": "boolean"
+        },
+        "gitInsights.gitlab.projectUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "pattern": "^$|^https://[^\\s\\\\?#@]+/[^\\s\\\\?#]+/[^\\s\\\\?#]+/?$",
+          "patternErrorMessage": "%gitlabProjectUrlError%",
+          "description": "%gitlabProjectUrl%"
         }
       }
     },

@@ -246,11 +246,45 @@ export class Git {
   }
 }
 
-export function remoteCommitUrl(remote: string, sha: string): string | undefined {
+function gitlabProjectUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith("https://") || /[\s\\?#]/.test(value)) return;
+  try {
+    // URLによる正規化の前に、曖昧なパスやエスケープ済みの区切り文字を拒否する。
+    const rawPath = value
+      .slice("https://".length)
+      .replace(/^[^/]+/, "")
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "");
+    const segments = rawPath.slice(1).split("/").map(decodeURIComponent);
+    if (
+      segments.length < 2 ||
+      segments.some(
+        (part) =>
+          !part ||
+          part === "." ||
+          part === ".." ||
+          /[/\\]/.test(part) ||
+          [...part].some((char) => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127),
+      )
+    )
+      return;
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return;
+    return `${url.origin}${url.pathname.replace(/\/+$/, "").replace(/\.git$/, "")}`;
+  } catch {
+    return;
+  }
+}
+
+export function remoteCommitUrl(
+  remote: string,
+  sha: string,
+  configuredGitlabProjectUrl?: unknown,
+): string | undefined {
   if (!isSha(sha)) return;
   const normalized = remote
-    .replace(/^git@([^:]+):/, "https://$1/")
-    .replace(/^ssh:\/\/git@/, "https://");
+    .replace(/^(?:[^/@:\s]+@)?([^/:@\s]+):(?!\/\/)\/?/, "https://$1/")
+    .replace(/^ssh:\/\/(?:[^/@:]+@)?/, "https://");
   try {
     const url = new URL(normalized);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return;
@@ -260,6 +294,8 @@ export function remoteCommitUrl(remote: string, sha: string): string | undefined
     if (url.hostname === "github.com") return `${url.origin}${project}/commit/${sha}`;
     if (url.hostname === "gitlab.com") return `${url.origin}${project}/-/commit/${sha}`;
     if (url.hostname === "bitbucket.org") return `${url.origin}${project}/commits/${sha}`;
+    const configured = gitlabProjectUrl(configuredGitlabProjectUrl);
+    if (configured) return `${configured}/-/commit/${sha}`;
   } catch {
     /* Unsupported remote. */
   }

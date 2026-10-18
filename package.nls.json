@@ -12,5 +12,7 @@
   "repositories": "Repositories",
   "repositoriesWelcome": "Open a folder containing a Git repository.\\n[Open Commit Graph](command:gitInsights.openGraph)",
   "blame": "Show current-line blame annotations and commit details on hover.",
-  "graphView": "Repository Graph"
+  "graphView": "Repository Graph",
+  "gitlabProjectUrl": "HTTPS project URL for self-hosted GitLab, including the namespace, optional web port and base path. Set this per workspace folder. Used for unrecognized origin hosts; GitHub.com, GitLab.com and Bitbucket.org keep automatic links. Leave empty to disable. No credentials, query or fragment.",
+  "gitlabProjectUrlError": "Enter an HTTPS project URL including its namespace and project, without credentials, query or fragment, or leave empty."
 }

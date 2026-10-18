@@ -12,18 +12,37 @@ VS Code 1.96以降とGitが必要です。VSIXからインストールしてく�
 - グラフのコミット詳細から **Cherry-pickを確認 / メッセージ変更を確認** を選ぶと、エディタで対象と適用先を確認して実行できます。作業ツリーがクリーンなローカルブランチで、単一の非マージコミットを扱います。過去コミットのメッセージ変更は現在のブランチ上で後続にマージがない場合に対応します。
 - 実行前にエディタを閉じると変更はありません。実行後に閉じてもGit処理は中止されません。競合時は対象リポジトリで `git status` を確認し、Git標準の継続・中止操作を使用してください。
 
-グラフ・履歴・FetchはローカルのGit設定を使用します。コミットのブラウザー表示はGitHub.com、GitLab.com (サブグループを含む)、Bitbucket.orgに対応しています。Self-ManagedのブラウザーリンクやPR/MRのAPI連携は未対応です。
+グラフ・履歴・FetchはローカルのGit設定を使用します。コミットのブラウザー表示はGitHub.com、GitLab.com (サブグループを含む)、Bitbucket.orgに対応しています。セルフホストGitLabのブラウザーリンクは下記の設定で利用できます。PR/MRのAPI連携は未対応です。
 
 ## 設定
 
-| 設定                           | 初期値  | 内容                              |
-| ------------------------------ | ------- | --------------------------------- |
-| `gitInsights.blame.enabled`    | `true`  | 行末の変更者と詳細ホバー          |
-| `gitInsights.codeLens.enabled` | `true`  | 関数・クラスの最終変更者          |
-| `gitInsights.history.limit`    | `100`   | ファイル・行履歴の上限 (10〜1000) |
-| `gitInsights.gravatar.enabled` | `false` | 著者アバターの取得                |
+| 設定                            | 初期値  | 内容                                     |
+| ------------------------------- | ------- | ---------------------------------------- |
+| `gitInsights.blame.enabled`     | `true`  | 行末の変更者と詳細ホバー                 |
+| `gitInsights.codeLens.enabled`  | `true`  | 関数・クラスの最終変更者                 |
+| `gitInsights.history.limit`     | `100`   | ファイル・行履歴の上限 (10〜1000)        |
+| `gitInsights.gravatar.enabled`  | `false` | 著者アバターの取得                       |
+| `gitInsights.gitlab.projectUrl` | `""`    | セルフホストGitLabのHTTPSプロジェクトURL |
 
 VS Code標準Gitの行末Blameが有効な場合、重複を避けるためGit Insightsの行末表示と詳細ホバーは表示しません。Git Insights側を使う場合は `git.blame.editorDecoration.enabled` を `false` にしてください。設定変更は再起動なしで反映されます。
+
+### セルフホストGitLab
+
+VS Codeの設定で `gitInsights.gitlab.projectUrl` を検索し、対象リポジトリが属するワークスペースの**フォルダー設定**にプロジェクトURLを入力します。インスタンスのルートではなく、ブラウザーで開くプロジェクトのトップページを指定してください。
+
+```json
+{
+  "gitInsights.gitlab.projectUrl": "https://gitlab.example.invalid:8443/gitlab/group/subgroup/project"
+}
+```
+
+履歴のブラウザー表示と行末Blameのリンクに反映されます。設定変更・削除は再起動なしで反映されます。
+
+- HTTPSのみ対応します。認証情報・クエリ・フラグメントは入力しないでください。不正な設定ではリンクを作成しません。
+- Webポート、サブパス、サブグループを含められます。SSHの別ホスト名・エイリアス・ポートにも対応するため、未知のoriginホストでは設定したプロジェクトURLをそのまま使用します。remoteからプロジェクトのパスは推測しません。
+- GitHub.com・GitLab.com・Bitbucket.orgのoriginでは、従来どおりremoteから自動生成したリンクを優先します。
+- 複数リポジトリでプロジェクトURLを使い回さないよう、ユーザー設定ではなくフォルダー設定を推奨します。同じワークスペースフォルダー内のリポジトリには同じ設定が適用されます。異なるURLが必要ならフォルダーを分けてください。
+- 空欄に戻すとセルフホスト用リンクを無効にできます。remoteやGitの認証設定は変更しません。
 
 AI機能とテレメトリはありません。Gravatar有効時のみメールアドレスのSHA-256ハッシュを送信します。信頼されていないワークスペースでは動作しません。
 
