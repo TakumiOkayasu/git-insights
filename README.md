@@ -8,7 +8,8 @@ VS Code 1.96以降とGitが必要です。VSIXからインストールしてく�
 
 - **Git Insights: リポジトリグラフを開く**: ターミナルと同じパネル領域でグラフを表示します。ブランチ比較、Fetch、ローカルブランチ切り替えができます。
 - **ファイル履歴を表示 / 行履歴を表示**: 履歴を表示し、変更ファイルの差分をエディタで開きます。
-- **Rebaseエディタを開く**: 既存の `git-rebase-todo` をエディタ領域で編集します。保存して閉じるとGitが続行します。閉じるだけでは中止できません。中止は `git rebase --abort` を使用してください。
+- **Rebaseエディタを開く**: 既存の `git-rebase-todo` をエディタ領域で編集します。保存して閉じるとGitが続行します。
+  閉じるだけでは中止できません。中止は `git rebase --abort` を使用してください。
 - グラフのコミット詳細から **Cherry-pickを確認 / メッセージ変更を確認** を選ぶと、エディタで対象と適用先を確認して実行できます。作業ツリーがクリーンなローカルブランチで、単一の非マージコミットを扱います。過去コミットのメッセージ変更は現在のブランチ上で後続にマージがない場合に対応します。
 - 実行前にエディタを閉じると変更はありません。実行後に閉じてもGit処理は中止されません。競合時は対象リポジトリで `git status` を確認し、Git標準の継続・中止操作を使用してください。
 
@@ -24,7 +25,8 @@ VS Code 1.96以降とGitが必要です。VSIXからインストールしてく�
 | `gitInsights.gravatar.enabled`  | `false` | 著者アバターの取得                       |
 | `gitInsights.gitlab.projectUrl` | `""`    | セルフホストGitLabのHTTPSプロジェクトURL |
 
-VS Code標準Gitの行末Blameが有効な場合、重複を避けるためGit Insightsの行末表示と詳細ホバーは表示しません。Git Insights側を使う場合は `git.blame.editorDecoration.enabled` を `false` にしてください。設定変更は再起動なしで反映されます。
+VS Code標準Gitの行末Blameが有効な場合、重複を避けるため`Git Insights`の行末表示と詳細ホバーは表示しません。
+`Git Insights`側を使う場合は `git.blame.editorDecoration.enabled` を `false` にしてください。設定変更は再起動なしで反映されます。
 
 ### セルフホストGitLab
 
