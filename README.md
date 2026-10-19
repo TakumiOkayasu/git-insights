@@ -17,13 +17,13 @@ VS Code 1.96以降とGitが必要です。VSIXからインストールしてく�
 
 ## 設定
 
-| 設定 | 初期値 | 内容 |
-| --- | --- | --- |
-| `gitInsights.blame.enabled` | `true` | 行末の変更者と詳細ホバー |
-| `gitInsights.codeLens.enabled` | `true` | 関数・クラスの最終変更者 |
-| `gitInsights.history.limit` | `100` | ファイル・行履歴の上限 (10〜1000) |
-| `gitInsights.gravatar.enabled` | `false` | 著者アバターの取得 |
-| `gitInsights.gitlab.projectUrl` | `""` | セルフホストGitLabのHTTPSプロジェクトURL |
+| 設定                            | 初期値  | 内容                                     |
+| ------------------------------- | ------- | ---------------------------------------- |
+| `gitInsights.blame.enabled`     | `true`  | 行末の変更者と詳細ホバー                 |
+| `gitInsights.codeLens.enabled`  | `true`  | 関数・クラスの最終変更者                 |
+| `gitInsights.history.limit`     | `100`   | ファイル・行履歴の上限 (10〜1000)        |
+| `gitInsights.gravatar.enabled`  | `false` | 著者アバターの取得                       |
+| `gitInsights.gitlab.projectUrl` | `""`    | セルフホストGitLabのHTTPSプロジェクトURL |
 
 VS Code標準Gitの行末Blameが有効な場合、重複を避けるため`Git Insights`の行末表示と詳細ホバーは表示しません。
 `Git Insights`側を使う場合は `git.blame.editorDecoration.enabled` を `false` にしてください。設定変更は再起動なしで反映されます。
