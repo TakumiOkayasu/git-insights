@@ -72,6 +72,14 @@ jobs:
         run: |
           test -f "$ASSET"
           sha256sum "$ASSET" > SHA256SUMS.txt
-          gh release create "$TAG" "$ASSET" SHA256SUMS.txt \
-            --verify-tag --draft --title "$TAG" --generate-notes
-          gh release edit "$TAG" --draft=false
+          existing_release_id="$(
+            gh api --paginate "repos/${GH_REPO}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${TAG}\") | .id"
+          )"
+          if [ -n "$existing_release_id" ]; then
+            gh release upload "$TAG" "$ASSET" SHA256SUMS.txt
+          else
+            gh release create "$TAG" "$ASSET" SHA256SUMS.txt \
+              --verify-tag --draft --title "$TAG" --generate-notes
+            gh release edit "$TAG" --draft=false
+          fi
